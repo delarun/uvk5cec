@@ -35,7 +35,7 @@
 //#include "ubitx.h"
 #include "ceccat.h"
 #include "driver/uart.h"
-#include "ui\ui.h"
+#include "ui/ui.h"
 #include "radio.h"
 #include "settings.h"
 #include "misc.h"
@@ -261,7 +261,7 @@ void CatSetSplit(bool isSplit) //for remove warning messages
     
   Serial_write(ACK);
 }
-#include "app\generic.h"
+#include "app/generic.h"
 bool txCAT;
 
 void CatSetPTT(bool isPTTOn, byte fromType)
@@ -321,7 +321,7 @@ void CatVFOToggle(bool isSendACK, byte fromType)
 }
 
 #include "misc.h"
-#include "app\app.h"
+#include "app/app.h"
 void CatSetMode(byte tmpMode, byte fromType)
 {
   if (fromType == 2 || fromType == 3) {

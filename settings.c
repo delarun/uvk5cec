@@ -340,7 +340,11 @@ void SETTINGS_InitEEPROM(void)
 	EEPROM_ReadBuffer(CEC_EEPROM_START1_SEC2, Data, 8);
 	aprs_MYSSID   = Data[0] < 10 ? Data[0] : 1;  //
 	//aprs_DIGISSID = Data[1] < 10 ? Data[1] : 1;  //
+#ifdef ENABLE_CEC_FT4_FT8
 	DigitalMode = Data[2] < 10 ? Data[2] : 0;
+#else
+	DigitalMode = 0;
+#endif
 
 	//WATERFALL_rssiOffset = Data[2] < 100 ? Data[2] : 30;  //
 	//WATERFALL_ThresHold = Data[3] < 50 ? Data[3] : 7;  //

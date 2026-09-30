@@ -3,6 +3,31 @@
 # 0 = disable
 # 1 = enable
 
+# ---- BUILD PROFILES (must stay above the defaults; command-line ENABLE_* still win) ----
+#   make PROFILE=hermes   Hermes Link mesh, no spectrum WF, no CW keyer/VOX/flashlight (fits 60K)
+#   make PROFILE=sdr      PC remote over UART (tools/remote.html) + deltafw spectrum;
+#                         no VOX/AUDIO_BAR/F_CAL/flashlight/scan ranges (fits 60K)
+#   make                  default: deltafw spectrum (F+5), CW keyer, VOX, no Hermes, no remote
+ifeq ($(PROFILE),hermes)
+ENABLE_HERMES                 ?= 1
+ENABLE_SPECTRUM_WF            ?= 0
+ENABLE_CEC_SPECTRUM           ?= 0
+ENABLE_CEC_CWTX               ?= 0
+ENABLE_CEC_CWTX_EXPERT        ?= 0
+ENABLE_VOX                    ?= 0
+ENABLE_AUDIO_BAR              ?= 0
+ENABLE_F_CAL_MENU             ?= 0
+ENABLE_FLASHLIGHT             ?= 0
+endif
+ifeq ($(PROFILE),sdr)
+ENABLE_REMOTE                 ?= 1
+ENABLE_SCAN_RANGES            ?= 0
+ENABLE_VOX                    ?= 0
+ENABLE_AUDIO_BAR              ?= 0
+ENABLE_F_CAL_MENU             ?= 0
+ENABLE_FLASHLIGHT             ?= 0
+endif
+
 # ENABLE_FMRADIO - Size : 4220 Byte
 # ---- STOCK QUANSHENG FERATURES ----
 ENABLE_UART                   ?= 1
@@ -30,14 +55,17 @@ ENABLE_UPDOWN_CODE            ?= 0
 
 #--- ADDED
 ENABLE_HAMBAND_TX_CONTROL     ?= 1
-ENABLE_CEC_SSTV				  ?= 1
+ENABLE_CEC_SSTV               ?= 0
 ENABLE_CEC_CWTX				  ?= 1
 #---- PADDLE WPM > 20 USING TIMER WITHOUT K-PAD, K-STRAIGHT, BUT INCLUDE IAMBIC B, not expert mode : 62204, 62480 (+ 276), so if not enough memory remove vox (61816)
 ENABLE_CEC_CWTX_EXPERT	  	  ?= 1
 ENABLE_CEC_CAT                ?= 1
-ENABLE_CEC_RTTY               ?= 1
-ENABLE_CEC_APRS               ?= 1
-ENABLE_CEC_FT4_FT8            ?= 1
+ENABLE_CEC_RTTY               ?= 0
+ENABLE_CEC_APRS               ?= 0
+ENABLE_CEC_GPS                ?= 0
+ENABLE_CEC_FMRADIO            ?= 1
+ENABLE_CEC_FT4_FT8            ?= 0
+ENABLE_HERMES                 ?= 0
 ENABLE_CEC_CW_DECODE          ?= 1
 # ---- END OF KD8CEC WORK ------------------------------------------
 
@@ -63,7 +91,13 @@ ENABLE_RSSI_BAR               ?= 1
 ENABLE_AUDIO_BAR              ?= 1
 ENABLE_COPY_CHAN_TO_VFO       ?= 1
 #DEFAULT 1 VERSION 0.1P CHANGED 0
-ENABLE_SPECTRUM               ?= 0
+ENABLE_SPECTRUM               ?= 1
+# deltafw (qshosfw/deltafw-k1-k5v3) fagci spectrum analyzer with waterfall, F+5
+ENABLE_SPECTRUM_WF            ?= 0
+# KD8CEC spectrum + waterfall (F+5 when enabled, takes precedence)
+ENABLE_CEC_SPECTRUM           ?= 0
+# PC control over UART: swept panorama/waterfall + listen (tools/remote.html)
+ENABLE_REMOTE                 ?= 0
 ENABLE_REDUCE_LOW_MID_TX_POWER?= 0
 ENABLE_BYP_RAW_DEMODULATORS   ?= 0
 ENABLE_BLMIN_TMP_OFF          ?= 0
@@ -129,19 +163,46 @@ OBJS += external/printf/printf.o
 # IF YOU USE THIS FUNCTION, COPY BELOW TO OTHER FIRMWARE#
 #########################################################
 OBJS += ceccommon.o
-OBJS += cecsstv1.o
-OBJS += cecaprs.o
-OBJS += ceccat.o
+ifeq ($(ENABLE_CEC_SSTV),1)
+	OBJS += cecsstv1.o
+endif
+ifeq ($(ENABLE_CEC_APRS),1)
+	OBJS += cecaprs.o
+endif
+ifeq ($(ENABLE_CEC_CAT),1)
+	OBJS += ceccat.o
+endif
 OBJS += cecmorse.o
-OBJS += cecrtty.o
-OBJS += cecgps.o
-OBJS += minmea.o
+ifeq ($(ENABLE_CEC_RTTY),1)
+	OBJS += cecrtty.o
+endif
+ifeq ($(ENABLE_CEC_GPS),1)
+	OBJS += cecgps.o
+	OBJS += minmea.o
+endif
 OBJS += cectimer.o
-OBJS += cecspectrum.o
-OBJS += cecfmradio.o
-OBJS += cecdigital.o
-OBJS += cecswuart.o
-OBJS += cecwsprsend.o
+ifeq ($(ENABLE_CEC_SPECTRUM),1)
+	OBJS += cecspectrum.o
+endif
+ifeq ($(ENABLE_CEC_FMRADIO),1)
+	OBJS += cecfmradio.o
+endif
+ifeq ($(ENABLE_CEC_FT4_FT8),1)
+	OBJS += cecdigital.o
+	OBJS += cecswuart.o
+	OBJS += cecwsprsend.o
+endif
+
+# Hermes Link FSK mesh (qshosfw/hermes, GPL-3.0)
+ifeq ($(ENABLE_HERMES),1)
+	OBJS += hermes/chacha20.o hermes/poly1305.o
+	OBJS += hermes/hm_whitening.o hermes/hm_fec.o hermes/hm_framing.o
+	OBJS += hermes/hm_packet.o hermes/hm_reliability.o hermes/hm_csma.o
+	OBJS += hermes/hm_addressing.o hermes/hm_routing.o
+	OBJS += hermes/hm_kdf.o hermes/hm_seal.o hermes/hm_crypto_engine.o
+	OBJS += hermes/hm_messaging.o hermes/hm_ack.o hermes/hm_discovery.o
+	OBJS += hermes/hm_phy.o hermes/hm_trng.o hermes/hermes.o hermes/hermes_ui.o
+endif
 ################### END OF ADDED BY KD8CEC ##############
 
 # Drivers
@@ -192,6 +253,12 @@ OBJS += app/main.o
 OBJS += app/menu.o
 ifeq ($(ENABLE_SPECTRUM), 1)
 OBJS += app/spectrum.o
+endif
+ifeq ($(ENABLE_SPECTRUM_WF), 1)
+OBJS += app/spectrum_wf.o
+endif
+ifeq ($(ENABLE_REMOTE), 1)
+OBJS += app/remote.o
 endif
 OBJS += app/scanner.o
 ifeq ($(ENABLE_UART),1)
@@ -338,7 +405,22 @@ CFLAGS += -DENABLE_SSTV_APRS_SIDETOME
 endif
 
 ifeq ($(ENABLE_SPECTRUM),1)
+ifeq ($(ENABLE_SPECTRUM_WF),1)
+$(error ENABLE_SPECTRUM and ENABLE_SPECTRUM_WF are mutually exclusive (both provide APP_RunSpectrum))
+endif
 CFLAGS += -DENABLE_SPECTRUM
+endif
+ifeq ($(ENABLE_SPECTRUM_WF),1)
+CFLAGS += -DENABLE_SPECTRUM_WF
+endif
+ifeq ($(ENABLE_REMOTE),1)
+ifneq ($(ENABLE_UART),1)
+$(error ENABLE_REMOTE needs ENABLE_UART=1)
+endif
+CFLAGS += -DENABLE_REMOTE
+endif
+ifeq ($(ENABLE_CEC_SPECTRUM),1)
+CFLAGS += -DENABLE_CEC_SPECTRUM
 endif
 ifeq ($(ENABLE_SWD),1)
 	CFLAGS += -DENABLE_SWD
@@ -517,6 +599,15 @@ endif
 ifeq ($(ENABLE_CEC_CW_DECOD),1)
 CFLAGS += -DENABLE_CEC_CW_DECOD
 endif
+ifeq ($(ENABLE_CEC_GPS),1)
+CFLAGS += -DENABLE_CEC_GPS
+endif
+ifeq ($(ENABLE_CEC_FMRADIO),1)
+CFLAGS += -DENABLE_CEC_FMRADIO
+endif
+ifeq ($(ENABLE_HERMES),1)
+CFLAGS += -DENABLE_HERMES
+endif
 
 # END OF KD8CEC WORK
 
@@ -580,8 +671,17 @@ flash:
 
 version.o: .FORCE
 
+# Rebuild every object when the feature flags (CFLAGS/LDFLAGS) change;
+# without this, toggling ENABLE_* leaves stale .o files and LTO silently
+# drops code whose call sites were compiled with the old flags.
+FLAGS_STAMP := .build-flags
+$(FLAGS_STAMP): .FORCE
+	@echo '$(CFLAGS) $(LDFLAGS)' | cmp -s - $@ || echo '$(CFLAGS) $(LDFLAGS)' > $@
+$(OBJS): $(FLAGS_STAMP)
+
 $(TARGET): $(OBJS)
-	$(LD) $(LDFLAGS) $^ -o $@ $(LIBS)
+	@rm -f $@ $@.bin $@.packed.bin
+	$(LD) $(LDFLAGS) $(OBJS) -o $@ $(LIBS)
 
 bsp/dp32g030/%.h: hardware/dp32g030/%.def
 
@@ -596,7 +696,7 @@ bsp/dp32g030/%.h: hardware/dp32g030/%.def
 -include $(DEPS)
 
 clean:
-	$(RM) $(call FixPath, $(TARGET).bin $(TARGET).packed.bin $(TARGET) $(OBJS) $(DEPS))
+	$(RM) $(call FixPath, $(TARGET).bin $(TARGET).packed.bin $(TARGET) $(OBJS) $(DEPS) .build-flags)
 
 doxygen:
 	doxygen

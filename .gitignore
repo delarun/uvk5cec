@@ -13,3 +13,4 @@ hf-si4732/external
 hf-si4732/firmware
 hf-si4732/firmware.bin
 hf-si4732/firmware.packed.bin
+.build-flags

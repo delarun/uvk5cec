@@ -23,7 +23,13 @@
 extern const uint8_t gFontBig[95 - 1][16 - 2];
 extern const uint8_t gFontBigDigits[11][26 - 6];
 //extern const uint8_t gFont3x5[96][3];
-extern const uint8_t gFont3x5[48][3];	//for reduce program memory, enable 3x5 font but, lowcase removed
+#if defined(ENABLE_SPECTRUM) || defined(ENABLE_SPECTRUM_WF)
+	extern const uint8_t gFont3x5[][3];	// full table, first glyph = ' '
+	#define FONT3X5_FIRST 0x20
+#else
+	extern const uint8_t gFont3x5[48][3];	//for reduce program memory, enable 3x5 font but, lowcase removed
+	#define FONT3X5_FIRST 0x2B
+#endif
 extern const uint8_t gFontSmall[95 - 1][6];
 #ifdef ENABLE_SMALL_BOLD
 	extern const uint8_t gFontSmallBold[95 - 1][6];

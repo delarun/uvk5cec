@@ -45,7 +45,7 @@
 #include "driver/systick.h"
 #include "misc.h"
 
-#include "bsp\dp32g030\irq.h"
+#include "bsp/dp32g030/irq.h"
 #include "cectimer.h"
 #include "ceccommon.h"
 

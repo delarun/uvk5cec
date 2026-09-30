@@ -73,6 +73,12 @@
 #include "ui/ui.h"
 #include "ceccommon.h"
 #include "cecmorse.h"
+#ifdef ENABLE_HERMES
+	#include "hermes/hermes.h"
+#endif
+#ifdef ENABLE_REMOTE
+	#include "app/remote.h"
+#endif
 
 static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld);
 
@@ -88,6 +94,10 @@ void (*ProcessKeysFunctions[])(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld) 
 
 #ifdef ENABLE_AIRCOPY
 	[DISPLAY_AIRCOPY] = &AIRCOPY_ProcessKeys,
+#endif
+
+#ifdef ENABLE_HERMES
+	[DISPLAY_HERMES] = &HERMES_ProcessKeys,
 #endif
 };
 
@@ -722,6 +732,10 @@ static void CheckRadioInterrupts(void)
 			AIRCOPY_StorePacket();
 		}
 #endif
+
+#ifdef ENABLE_HERMES
+		HERMES_HandleFSKInterrupt(interrupt_status_bits);
+#endif
 	}
 }
 
@@ -931,6 +945,9 @@ void APP_Update(void)
 #ifdef ENABLE_FMRADIO
 			|| gFmRadioMode
 #endif
+#ifdef ENABLE_HERMES
+			|| gHermesActive		// radio must stay awake to hear mesh frames
+#endif
 #ifdef ENABLE_DTMF_CALLING
 			|| gDTMF_CallState != DTMF_CALL_STATE_NONE
 #endif
@@ -1046,6 +1063,7 @@ static void CheckKeys(void)
 
 			//BY KD8CEC FOR CW HOLD TX MODE			
 			//ProcessKey(KEY_PTT, true, false);
+#ifdef ENABLE_CEC_CWTX
 			if (((gRxVfo->Modulation) == MODULATION_CWN  || 
 			    (gRxVfo->Modulation) == MODULATION_CWFM || 
 			    (gRxVfo->Modulation) == MODULATION_CW   ) && (gScreenToDisplay == DISPLAY_MAIN ))
@@ -1053,6 +1071,7 @@ static void CheckKeys(void)
 				CWTXStart(1, 3);
 			}
 			else			
+#endif
 				ProcessKey(KEY_PTT, true, false);			
 		}
 	}
@@ -1063,7 +1082,9 @@ static void CheckKeys(void)
 	//Check ADC Value for Auto Change TX Mode by PADDLE working
 
 
-#ifdef ENABLE_CEC_CWTX_EXPERT
+#if !defined(ENABLE_CEC_CWTX)
+	// CW keyer disabled at build time
+#elif defined(ENABLE_CEC_CWTX_EXPERT)
 	//EXPERT MODE IS ALWAYS USING ADC, IAMBIC.A,IAMBIC.B, STRAIGHT
 	if (CW_Mode != CWMODE_NONE && (gScreenToDisplay == DISPLAY_MAIN ))
 	{
@@ -1182,11 +1203,20 @@ void APP_TimeSlice10ms(void)
 	}
 #endif
 
+#ifdef ENABLE_REMOTE
+	if (gRemoteRequest && gCurrentFunction != FUNCTION_TRANSMIT)
+		REMOTE_Run();		// PC took over via UART (tools/remote.html)
+#endif
+
 	if (gReducedService)
 		return;
 
 	if (gCurrentFunction != FUNCTION_POWER_SAVE || !gRxIdleMode)
 		CheckRadioInterrupts();
+
+#ifdef ENABLE_HERMES
+	HERMES_Tick10ms();
+#endif
 
 	if (gCurrentFunction == FUNCTION_TRANSMIT)
 	{	// transmitting

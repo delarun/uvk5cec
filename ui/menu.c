@@ -51,27 +51,36 @@ const t_menu_item MenuList[] =
 #endif
 	//VERSION 0.1M
 	{"U.Info", VOICE_ID_INVALID,                       MENU_RIGINFO       },
+#ifdef ENABLE_CEC_FT4_FT8
 	{"DIG.M",  VOICE_ID_INVALID,                       MENU_DIGITAL_MODE  },	
 	{"T.WSPR", VOICE_ID_INVALID,                       MENU_WSPR_SEND     },	
-
+#endif
+#ifdef ENABLE_CEC_SSTV
 	{"T.SSTV", VOICE_ID_INVALID,                       MENU_SSTV          },	
 	{"STVEnc", VOICE_ID_INVALID,                       MENU_SSTV_PROTOCOL },	
 	{"STV CW", VOICE_ID_INVALID,                       MENU_SSTV_SENDCW   },	
+#endif
 
 	//VERSION 0.2B
+#ifdef ENABLE_CEC_APRS
 	{"T.APRS", VOICE_ID_INVALID,                       MENU_APRS_SEND     },	
 	{"MySSID", VOICE_ID_INVALID,                       MENU_APRS_MYSSID   },	
+#endif
 	//{"DigiID", VOICE_ID_INVALID,                       MENU_APRS_DIGISSID },	//Remove at 0.2G
 
 	//VERSION 0.1P
+#ifdef ENABLE_CEC_CWTX
 	{"CW KEY", VOICE_ID_INVALID,                       MENU_CWKEY         },
+#endif
 	{"CWTone", VOICE_ID_INVALID,                       MENU_CWTONE        },
+#ifdef ENABLE_CEC_CWTX
 	{"CW Dly", VOICE_ID_INVALID,                       MENU_CWTXDELAY     },
 	{"CW WPM", VOICE_ID_INVALID,                       MENU_CWSPEED       },
 	{"CW AD1", VOICE_ID_INVALID,                       MENU_CWADC_PAD1_START  },
 	{"CW AD2", VOICE_ID_INVALID,                       MENU_CWADC_PAD2_START  },
 	{"CW AD3", VOICE_ID_INVALID,                       MENU_CWADC_BOTH_START  },
 	{"CW AD4", VOICE_ID_INVALID,                       MENU_CWADC_BOTH_END    },
+#endif
 	//END OF KD8CEC MENU
 
 	{"TxPwr",  VOICE_ID_POWER,                         MENU_TXP           }, // was "TXP"
@@ -228,7 +237,11 @@ const char gSubMenu_RIGINFO[11][8] =
 	"AprsDP1",	//
 	"AprsDP2",
 	"AprsMsg",
+#if defined(ENABLE_HERMES) && !defined(ENABLE_CEC_SSTV)
+	"MESHKEY",	// Hermes Link network passphrase
+#else
 	"SSTV M1",
+#endif
 	"SSTV M2"
 };
 

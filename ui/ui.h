@@ -34,6 +34,10 @@ enum GUI_DisplayType_t
 	DISPLAY_AIRCOPY,
 #endif
 
+#ifdef ENABLE_HERMES
+	DISPLAY_HERMES,
+#endif
+
 	DISPLAY_N_ELEM,
 	DISPLAY_INVALID = 0xFFu
 };

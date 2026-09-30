@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UV-K5 — панорама по UART</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Palette: the radio itself — graphite chassis, reflective grey-green LCD,
+   Quansheng orange for "on air / listening". */
+:root {
+  --chassis: #25282d;
+  --panel:   #30343a;
+  --edge:    #454a52;
+  --text:    #e4e6e0;
+  --muted:   #9aa097;
+  --lcd:     #c3cda3;
+  --ink:     #26301f;
+  --orange:  #f0892a;
+  --warn:    #e25b45;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--chassis); color: var(--text);
+  font: 15px/1.45 "Barlow", "Segoe UI", system-ui, sans-serif;
+  padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0) env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+}
+.num { font-family: "Barlow Condensed", "Arial Narrow", sans-serif; font-variant-numeric: tabular-nums; }
+header {
+  display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center;
+  padding: 12px 18px; border-bottom: 1px solid var(--edge);
+}
+header h1 { font: 600 22px/1 "Barlow Condensed", sans-serif; margin: 0; letter-spacing: .01em; }
+#link { color: var(--muted); flex: 1 1 260px; min-width: 0; }
+#link b { color: var(--text); font-weight: 500; }
+button, select, input {
+  font: inherit; color: var(--text); background: var(--panel);
+  border: 1px solid var(--edge); border-radius: 6px; padding: 6px 10px;
+}
+button { cursor: pointer; font-weight: 600; }
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--orange); border-color: var(--orange); color: #1d1a16; }
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+input[type=number] { width: 7.5em; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 0; min-height: calc(100% - 60px); }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+/* The display is the product: an LCD-coloured plot above a waterfall. */
+#scope { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.lcd {
+  position: relative; background: var(--lcd); border-radius: 8px 8px 0 0;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.35);
+}
+#spec { display: block; width: 100%; height: 240px; cursor: crosshair; }
+#fall { display: block; width: 100%; height: 300px; cursor: crosshair; border-radius: 0 0 8px 8px; background: #141712; }
+#readout {
+  position: absolute; top: 8px; right: 10px; color: var(--ink);
+  font: 600 18px/1 "Barlow Condensed", sans-serif; text-align: right; pointer-events: none;
+}
+#readout small { display: block; font-size: 13px; font-weight: 500; opacity: .75; margin-top: 3px; }
+#axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 13px; padding: 4px 2px 0; }
+#hint { color: var(--muted); font-size: 13px; margin: 8px 2px 0; }
+#diag { color: var(--muted); font-size: 13px; margin: 2px 2px 0; opacity: .8; }
+
+aside { border-left: 1px solid var(--edge); padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 20px; }
+@media (max-width: 900px) { aside { border-left: 0; border-top: 1px solid var(--edge); } }
+fieldset { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; }
+legend { font: 600 17px/1 "Barlow Condensed", sans-serif; padding: 0 0 10px; grid-column: 1 / -1; }
+label { color: var(--muted); font-size: 14px; }
+fieldset select, fieldset input:not([type=checkbox]):not([type=range]) { width: 100%; }
+.row { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.row > button { flex: 1 1 auto; }
+#span { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+
+#meter { grid-column: 1 / -1; }
+#meterBar { height: 14px; background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; overflow: hidden; }
+#meterFill { height: 100%; width: 0; background: var(--lcd); transition: width .08s linear; }
+#meterFill.open { background: var(--orange); }
+#meterText { display: flex; justify-content: space-between; font-size: 14px; margin-top: 4px; }
+#sqMark { position: relative; height: 0; }
+.onair { color: var(--orange); }
+#msg { color: var(--warn); min-height: 1.2em; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { #meterFill { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>UV-K5 — панорама по UART</h1>
+  <div id="link">Рация не подключена. Вставьте кабель программирования и выберите его порт.</div>
+  <button id="btnConnect" class="primary">Подключить рацию</button>
+  <button id="btnStop" disabled>Отпустить рацию</button>
+</header>
+
+<main>
+  <section id="scope">
+    <div class="lcd">
+      <canvas id="spec" aria-label="Спектр, клик по сигналу — слушать"></canvas>
+      <div id="readout" class="num"></div>
+    </div>
+    <canvas id="fall" aria-label="Водопад, клик по сигналу — слушать"></canvas>
+    <div id="axis" class="num"><span id="axL">–</span><span id="axC">–</span><span id="axR">–</span></div>
+    <p id="hint">Клик по сигналу — слушать. Колесо сдвигает диапазон, Ctrl+колесо меняет шаг. Пробел переключает панораму и прослушивание.</p>
+    <p id="diag" class="num"></p>
+  </section>
+
+  <aside>
+    <fieldset id="fsSweep">
+      <legend>Панорама</legend>
+      <label for="preset">Диапазон</label>
+      <select id="preset">
+        <option value="">Свой</option>
+        <option value="145.0,12.5,128">2 m, 144–146 MHz</option>
+        <option value="435.0,50,256">70 cm, 430–440 MHz</option>
+        <option value="446.1,6.25,64">PMR446</option>
+        <option value="433.9,12.5,128">LPD433</option>
+        <option value="127.5,50,256">Авиа, 121–134 MHz</option>
+        <option value="159.0,25,256">Морской VHF</option>
+        <option value="98.0,100,256">FM-вещание</option>
+        <option value="464.0,25,256">FRS / GMRS</option>
+      </select>
+      <label for="center">Центр, MHz</label>
+      <input id="center" class="num" type="number" step="0.0125" min="18" max="1300" value="145.000">
+      <label for="step">Шаг</label>
+      <select id="step"></select>
+      <label for="points">Точек</label>
+      <select id="points"><option>64</option><option selected>128</option><option>256</option></select>
+      <label for="ifbw">ПЧ-фильтр</label>
+      <select id="ifbw"><option value="2">6.25 kHz</option><option value="1">12.5 kHz</option><option value="0">25 kHz</option></select>
+      <label for="dwell">Задержка</label>
+      <select id="dwell"><option value="0">авто</option><option value="5">0.5 мс</option><option value="10">1 мс</option><option value="30">3 мс</option></select>
+      <label for="baud">Скорость UART</label>
+      <select id="baud"><option value="38400">38400</option><option value="115200" selected>115200</option><option value="230400">230400</option></select>
+      <label for="avg">Сглаживание</label>
+      <select id="avg"><option value="1">нет</option><option value="0.5" selected>слабое</option><option value="0.2">сильное</option></select>
+      <label for="hold">Пики</label>
+      <input id="hold" type="checkbox">
+      <div id="span" class="num"></div>
+      <div class="row"><button id="btnSweep" disabled>Панорама</button></div>
+    </fieldset>
+
+    <fieldset id="fsListen">
+      <legend>Прослушивание</legend>
+      <label for="lfreq">Частота, MHz</label>
+      <input id="lfreq" class="num" type="number" step="0.00125" min="18" max="1300" value="145.500">
+      <label for="lmod">Режим</label>
+      <select id="lmod"><option value="0">FM</option><option value="1">AM</option><option value="2">SSB</option><option value="3">CW</option></select>
+      <label for="lbw">Полоса</label>
+      <select id="lbw"><option value="0">25 kHz</option><option value="1">12.5 kHz</option><option value="2">6.25 kHz</option></select>
+      <label for="sq">Шумодав</label>
+      <input id="sq" type="range" min="-130" max="-40" value="-118">
+      <label for="mon">Всегда открыт</label>
+      <input id="mon" type="checkbox">
+      <div id="meter">
+        <div id="meterBar"><div id="meterFill"></div></div>
+        <div id="meterText" class="num"><span id="mDbm">– dBm</span><span id="mS"></span><span id="mSq"></span></div>
+      </div>
+      <div class="row"><button id="btnListen" disabled>Слушать</button></div>
+    </fieldset>
+
+    <div id="msg" role="status"></div>
+  </aside>
+</main>
+
+<script>
+"use strict";
+// ─────────────────────────── protocol ───────────────────────────
+const OBF = [0x16,0x6C,0x14,0xE6,0x2E,0x91,0x0D,0x40,0x21,0x35,0xD5,0x40,0x13,0x03,0xE9,0x80];
+const CMD = { HELLO: 0x0514, START: 0x0A01, STOP: 0x0A02, SWEEP: 0x0A03, LISTEN: 0x0A04, KEEPALIVE: 0x0A05, BAUD: 0x0A06 };
+const RPL = { VERSION: 0x0515, STATUS: 0x0A81, SWEEP: 0x0A82 };
+const KNOWN = new Set(Object.values(RPL));
+const STEPS_KHZ = [1, 2.5, 5, 6.25, 10, 12.5, 25, 50, 100, 200, 500, 1000];
+const MODES = ["FM", "AM", "SSB", "CW", "CWF", "CWN"];
+
+function crc16(buf) {                              // CRC-16/XMODEM
+  let crc = 0;
+  for (const b of buf) {
+    crc ^= b << 8;
+    for (let i = 0; i < 8; i++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+  }
+  return crc;
+}
+
+function frame(id, data, obfuscate) {
+  const body = new Uint8Array(4 + data.length + 2);
+  const dv = new DataView(body.buffer);
+  dv.setUint16(0, id, true); dv.setUint16(2, data.length, true);
+  body.set(data, 4);
+  dv.setUint16(4 + data.length, crc16(body.subarray(0, 4 + data.length)), true);
+  if (obfuscate) for (let i = 0; i < body.length; i++) body[i] ^= OBF[i % 16];
+  const out = new Uint8Array(body.length + 6);
+  out.set([0xAB, 0xCD, (body.length - 2) & 0xFF, (body.length - 2) >> 8]);
+  out.set(body, 4);
+  out.set([0xDC, 0xBA], out.length - 2);
+  return out;
+}
+
+class Radio {
+  constructor(onPacket, onLost) {
+    this.onPacket = onPacket; this.onLost = onLost;
+    this.rx = new Uint8Array(0); this.plain = false;
+  }
+  async open() {
+    this.port = await navigator.serial.requestPort();
+    await this.port.open({ baudRate: 38400 });
+    this.baud = 38400;
+    this.writer = this.port.writable.getWriter();
+    this.reading = this.readLoop();
+  }
+  async reopen(baud) {                            // Web Serial can only change speed by reopening
+    this.closing = true;
+    try { await this.reader?.cancel(); } catch {}
+    try { await this.reading; } catch {}
+    try { this.writer?.releaseLock(); } catch {}
+    await this.port.close();
+    this.closing = false; this.rx = new Uint8Array(0);
+    await this.port.open({ baudRate: baud });
+    this.baud = baud;
+    this.writer = this.port.writable.getWriter();
+    this.reading = this.readLoop();
+  }
+  async close() {
+    this.closing = true;
+    try { await this.reader?.cancel(); } catch {}
+    try { this.writer?.releaseLock(); } catch {}
+    try { await this.reading; } catch {}
+    try { await this.port?.close(); } catch {}
+  }
+  async readLoop() {
+    while (this.port.readable && !this.closing) {
+      this.reader = this.port.readable.getReader();
+      try {
+        for (;;) {
+          const { value, done } = await this.reader.read();
+          if (done) break;
+          this.feed(value);
+        }
+      } catch (e) { if (!this.closing) this.onLost(e); }
+      finally { this.reader.releaseLock(); }
+    }
+  }
+  feed(chunk) {
+    const b = new Uint8Array(this.rx.length + chunk.length);
+    b.set(this.rx); b.set(chunk, this.rx.length);
+    let i = 0;
+    while (b.length - i >= 8) {
+      if (b[i] !== 0xAB || b[i + 1] !== 0xCD) { i++; continue; }
+      const len = b[i + 2] | (b[i + 3] << 8);
+      if (len > 600) { i++; continue; }
+      if (b.length - i < len + 8) break;
+      if (b[i + 6 + len] !== 0xDC || b[i + 7 + len] !== 0xBA) { i++; continue; }
+      let body = b.slice(i + 4, i + 4 + len);
+      let id = body[0] | (body[1] << 8);
+      if (!KNOWN.has(id)) {                        // radio still obfuscating
+        body = body.map((x, k) => x ^ OBF[k % 16]);
+        id = body[0] | (body[1] << 8);
+      }
+      if (KNOWN.has(id)) this.onPacket(id, new DataView(body.buffer, 4), body.subarray(4));
+      i += len + 8;
+    }
+    this.rx = b.slice(i);
+  }
+  async send(id, data = new Uint8Array(0), forceObf) {
+    await this.writer.write(frame(id, data, forceObf ?? !this.plain));
+  }
+  async hello() {
+    const ts = new Uint8Array(4); new DataView(ts.buffer).setUint32(0, (Date.now() / 1000) >>> 0, true);
+    // The radio picks the session mode from the raw header of the hello:
+    // plain 0x0514 -> plain session, obfuscated (raw 0x6902) -> obfuscated
+    // session. Everything after the hello must use the same mode.
+    for (const obf of [false, true, false]) {
+      const got = new Promise(res => { this.waitVersion = res; setTimeout(() => res(null), 600); });
+      await this.send(CMD.HELLO, ts, obf);
+      const v = await got;
+      if (v) { this.plain = !obf; return v; }
+    }
+    throw new Error("Рация не отвечает на hello. Проверьте кабель, порт и что рация включена в обычном режиме (не bootloader).");
+  }
+}
+
+// ─────────────────────────── state & UI ───────────────────────────
+const $ = id => document.getElementById(id);
+const specC = $("spec"), fallC = $("fall");
+const sctx = specC.getContext("2d"), fctx = fallC.getContext("2d");
+let radio = null, keepTimer = null;
+let sweep = null, avg = null, peak = null;
+let status = { mode: 0 };
+let dbMin = -130, dbMax = -50;
+let listenFreq = null, lastSweepT = 0, rate = 0;
+let rxCount = 0, lastRemoteT = 0, watchTimer = null;
+
+for (const k of STEPS_KHZ) $("step").add(new Option(`${k} kHz`, k));
+$("step").value = "12.5";
+
+const LUT = (() => {                               // waterfall: ink -> olive -> LCD -> orange -> white
+  const stops = [[0, [20, 23, 18]], [0.35, [58, 72, 40]], [0.6, [150, 165, 110]], [0.82, [240, 137, 42]], [1, [255, 245, 225]]];
+  const lut = new Uint8ClampedArray(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255; let j = 0;
+    while (t > stops[j + 1][0]) j++;
+    const [t0, c0] = stops[j], [t1, c1] = stops[j + 1], u = (t - t0) / (t1 - t0);
+    for (let c = 0; c < 3; c++) lut[i * 3 + c] = c0[c] + (c1[c] - c0[c]) * u;
+  }
+  return lut;
+})();
+
+function fitCanvas(c) {
+  const r = c.getBoundingClientRect(), d = devicePixelRatio || 1;
+  const w = Math.max(1, Math.round(r.width * d)), h = Math.max(1, Math.round(r.height * d));
+  if (c.width !== w || c.height !== h) {
+    let keep = null;
+    if (c === fallC && c.width > 1) { keep = document.createElement("canvas"); keep.width = c.width; keep.height = c.height; keep.getContext("2d").drawImage(c, 0, 0); }
+    c.width = w; c.height = h;
+    if (keep) fctx.drawImage(keep, 0, 0, w, h);
+  }
+}
+
+function sweepParams() {
+  const stepHz = parseFloat($("step").value) * 1000;
+  const points = parseInt($("points").value, 10);
+  const centerHz = parseFloat($("center").value) * 1e6;
+  const start = Math.round((centerHz - stepHz * points / 2) / 10);
+  return { start, step: Math.round(stepHz / 10), points, ifbw: +$("ifbw").value, dwell: +$("dwell").value };
+}
+
+const mhz = f10 => (f10 / 1e5).toFixed(f10 % 100 ? 5 : 4);
+
+function updateSpanText() {
+  const p = sweepParams();
+  const span = p.step * p.points / 1e5;
+  $("span").textContent = `${mhz(p.start)} … ${mhz(p.start + p.step * (p.points - 1))} MHz, ширина ${span.toFixed(3)} MHz`;
+}
+
+async function applySweep() {
+  updateSpanText();
+  if (!radio) return;
+  const p = sweepParams(), d = new Uint8Array(12), dv = new DataView(d.buffer);
+  dv.setUint32(0, p.start, true); dv.setUint32(4, p.step, true); dv.setUint16(8, p.points, true);
+  d[10] = p.ifbw; d[11] = p.dwell;
+  avg = peak = null;
+  await radio.send(CMD.SWEEP, d);
+}
+
+async function applyListen(f10) {
+  if (!radio) return;
+  if (f10 != null) $("lfreq").value = (f10 / 1e5).toFixed(5);
+  const f = Math.round(parseFloat($("lfreq").value) * 1e5);
+  listenFreq = f;
+  const d = new Uint8Array(8), dv = new DataView(d.buffer);
+  dv.setUint32(0, f, true);
+  d[4] = +$("lmod").value; d[5] = +$("lbw").value;
+  d[6] = Math.max(0, Math.min(255, +$("sq").value + 160));
+  d[7] = $("mon").checked ? 1 : 0;
+  await radio.send(CMD.LISTEN, d);
+  drawSpectrum();
+}
+
+function onPacket(id, dv, bytes) {
+  rxCount++;
+  if (id !== RPL.VERSION) { lastRemoteT = performance.now(); $("msg").textContent = ""; }
+  $("diag").textContent = `принято пакетов: ${rxCount}, последний 0x${id.toString(16).padStart(4, "0")}`;
+  if (id === RPL.VERSION) {
+    const ver = new TextDecoder().decode(bytes.subarray(0, 16)).replace(/\0.*$/s, "");
+    radio.waitVersion?.(ver || "?");
+  } else if (id === RPL.SWEEP) {
+    const start = dv.getUint32(0, true), step = dv.getUint32(4, true), n = dv.getUint16(8, true);
+    const dbm = Float32Array.from(bytes.subarray(10, 10 + n), v => v - 160);
+    const a = +$("avg").value;
+    if (!avg || avg.length !== n || !sweep || sweep.start !== start || sweep.step !== step) { avg = dbm.slice(); peak = dbm.slice(); }
+    else for (let i = 0; i < n; i++) { avg[i] += (dbm[i] - avg[i]) * a; peak[i] = Math.max(peak[i], dbm[i]); }
+    sweep = { start, step, n, raw: dbm };
+    const now = performance.now(); if (lastSweepT) rate = rate * 0.8 + 200 / (now - lastSweepT); lastSweepT = now;
+    autoRange(avg);
+    drawSpectrum(); addFallLine(dbm);
+  } else if (id === RPL.STATUS) {
+    status = {
+      mode: dv.getUint8(0), mod: dv.getUint8(1), bw: dv.getUint8(2), bat: dv.getUint8(3),
+      freq: dv.getUint32(4, true), rssi: dv.getUint8(18) - 160, open: dv.getUint8(19),
+      sweepMs: bytes.length >= 26 ? dv.getUint16(20, true) : null
+    };
+    radio.waitStatus?.(status); radio.waitStatus = null;
+    if (status.mode === 0) listenFreq = null; else listenFreq = status.freq;
+    updateMeter(); updateLink();
+  }
+}
+
+function autoRange(v) {
+  let lo = Infinity, hi = -Infinity;
+  for (const x of v) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
+  const tLo = Math.floor(lo - 4), tHi = Math.max(tLo + 30, Math.ceil(hi + 6));
+  dbMin += (tLo - dbMin) * 0.15; dbMax += (tHi - dbMax) * 0.15;
+}
+
+const xOf = (i, n, w) => (i + 0.5) / n * w;
+
+function drawSpectrum() {
+  fitCanvas(specC);
+  const w = specC.width, h = specC.height, d = devicePixelRatio || 1;
+  sctx.clearRect(0, 0, w, h);
+  const ink = "#26301f";
+  sctx.strokeStyle = "rgba(38,48,31,.18)"; sctx.lineWidth = 1;
+  sctx.fillStyle = "rgba(38,48,31,.6)"; sctx.font = `${12 * d}px "Barlow Condensed", sans-serif`;
+  for (let db = Math.ceil(dbMin / 10) * 10; db <= dbMax; db += 10) {
+    const y = h - (db - dbMin) / (dbMax - dbMin) * h;
+    sctx.beginPath(); sctx.moveTo(0, y); sctx.lineTo(w, y); sctx.stroke();
+    sctx.fillText(`${db}`, 4 * d, y - 3 * d);
+  }
+  if (!sweep) return;
+  const n = sweep.n, yOf = v => h - (Math.max(dbMin, Math.min(dbMax, v)) - dbMin) / (dbMax - dbMin) * h;
+  if ($("hold").checked && peak) {
+    sctx.strokeStyle = "rgba(38,48,31,.35)"; sctx.beginPath();
+    for (let i = 0; i < n; i++) { const x = xOf(i, n, w); i ? sctx.lineTo(x, yOf(peak[i])) : sctx.moveTo(x, yOf(peak[i])); }
+    sctx.stroke();
+  }
+  sctx.beginPath(); sctx.moveTo(0, h);
+  for (let i = 0; i < n; i++) sctx.lineTo(xOf(i, n, w), yOf(avg[i]));
+  sctx.lineTo(w, h); sctx.closePath();
+  sctx.fillStyle = "rgba(38,48,31,.22)"; sctx.fill();
+  sctx.strokeStyle = ink; sctx.lineWidth = 1.5 * d; sctx.beginPath();
+  for (let i = 0; i < n; i++) { const x = xOf(i, n, w); i ? sctx.lineTo(x, yOf(avg[i])) : sctx.moveTo(x, yOf(avg[i])); }
+  sctx.stroke();
+  if (listenFreq != null) {
+    const i = (listenFreq - sweep.start) / sweep.step;
+    if (i >= -0.5 && i <= n - 0.5) {
+      const x = xOf(i, n, w);
+      sctx.strokeStyle = "#f0892a"; sctx.lineWidth = 2 * d;
+      sctx.beginPath(); sctx.moveTo(x, 0); sctx.lineTo(x, h); sctx.stroke();
+    }
+  }
+  $("axL").textContent = mhz(sweep.start);
+  $("axC").textContent = mhz(sweep.start + sweep.step * Math.floor(n / 2));
+  $("axR").textContent = mhz(sweep.start + sweep.step * (n - 1));
+}
+
+function addFallLine(dbm) {
+  fitCanvas(fallC);
+  const w = fallC.width, h = fallC.height, n = dbm.length;
+  fctx.drawImage(fallC, 0, 0, w, h - 1, 0, 1, w, h - 1);
+  const img = fctx.createImageData(w, 1);
+  for (let x = 0; x < w; x++) {
+    const v = dbm[Math.min(n - 1, Math.floor(x / w * n))];
+    const k = Math.max(0, Math.min(255, Math.round((v - dbMin) / (dbMax - dbMin) * 255))) * 3;
+    img.data[x * 4] = LUT[k]; img.data[x * 4 + 1] = LUT[k + 1]; img.data[x * 4 + 2] = LUT[k + 2]; img.data[x * 4 + 3] = 255;
+  }
+  fctx.putImageData(img, 0, 0);
+}
+
+function freqAt(ev, canvas) {
+  if (!sweep) return null;
+  const r = canvas.getBoundingClientRect();
+  const i = Math.max(0, Math.min(sweep.n - 1, Math.floor((ev.clientX - r.left) / r.width * sweep.n)));
+  return { i, f: sweep.start + sweep.step * i };
+}
+
+for (const c of [specC, fallC]) {
+  c.addEventListener("mousemove", ev => {
+    const p = freqAt(ev, c); if (!p) return;
+    $("readout").innerHTML = `${mhz(p.f)} MHz<small>${sweep.raw[p.i].toFixed(0)} dBm</small>`;
+  });
+  c.addEventListener("mouseleave", () => { $("readout").textContent = ""; });
+  c.addEventListener("click", ev => { const p = freqAt(ev, c); if (p) applyListen(p.f); });
+  c.addEventListener("wheel", ev => {
+    ev.preventDefault();
+    if (ev.ctrlKey) {
+      const k = STEPS_KHZ.indexOf(parseFloat($("step").value));
+      const nk = Math.max(0, Math.min(STEPS_KHZ.length - 1, k + (ev.deltaY > 0 ? 1 : -1)));
+      $("step").value = String(STEPS_KHZ[nk]);
+    } else {
+      const p = sweepParams();
+      const shift = p.step * p.points / 10 / 1e5 * Math.sign(ev.deltaY);
+      $("center").value = (parseFloat($("center").value) + shift).toFixed(5);
+    }
+    $("preset").value = "";
+    debounceSweep();
+  }, { passive: false });
+}
+
+function waitStatus(ms) {
+  return new Promise(res => { radio.waitStatus = res; setTimeout(() => res(null), ms); });
+}
+
+// Switch the UART speed: the radio acks at the old speed, then both sides
+// change. If nothing comes back, the radio falls back to 38400 after 2 s.
+async function setSpeed(b) {
+  if (!radio || radio.baud === b) return;
+  const d = new Uint8Array(4); new DataView(d.buffer).setUint32(0, b, true);
+  const ack = waitStatus(1500);                  // a long sweep may still be running
+  await radio.send(CMD.BAUD, d);
+  await ack;
+  await radio.reopen(b);
+  const ok = waitStatus(1200);
+  await radio.send(CMD.KEEPALIVE);
+  if (await ok) { updateLink(); return; }
+  await new Promise(res => setTimeout(res, 1500));
+  await radio.reopen(38400);
+  await radio.send(CMD.KEEPALIVE);
+  $("baud").value = "38400";
+  $("msg").textContent = `На ${b} бод связь не пошла (кабель или адаптер не тянет), работаем на 38400.`;
+  updateLink();
+}
+
+let sweepTimer = 0;
+function debounceSweep() { clearTimeout(sweepTimer); sweepTimer = setTimeout(applySweep, 150); }
+
+function sUnits(dbm) {                              // S9 = -93 dBm (VHF convention)
+  if (dbm >= -93) return `S9+${Math.round(dbm + 93)}`;
+  return `S${Math.max(0, Math.round(9 - (-93 - dbm) / 6))}`;
+}
+
+function updateMeter() {
+  if (status.mode !== 1) { $("meterFill").style.width = "0"; $("mDbm").textContent = "– dBm"; $("mS").textContent = ""; $("mSq").textContent = ""; return; }
+  const pct = Math.max(0, Math.min(100, (status.rssi + 130) / 90 * 100));
+  $("meterFill").style.width = pct + "%";
+  $("meterFill").classList.toggle("open", !!status.open);
+  $("mDbm").textContent = `${status.rssi} dBm`;
+  $("mS").textContent = sUnits(status.rssi);
+  $("mSq").textContent = status.open ? "открыт" : "закрыт";
+}
+
+function updateLink(extra) {
+  if (!radio) return;
+  const what = status.mode === 1
+    ? `<span class="onair">приём ${mhz(status.freq)} MHz ${MODES[status.mod] ?? ""}</span>`
+    : `панорама${rate ? `, ${rate.toFixed(1)} прох./с` : ""}${status.sweepMs ? `, замер ${status.sweepMs} мс` : ""}`;
+  $("link").innerHTML = `<b>${radio.version}</b>, ${radio.baud} бод, батарея ${status.bat ?? "–"}%, ${what}${extra ? ", " + extra : ""}`;
+}
+
+function setConnected(on) {
+  $("btnConnect").textContent = on ? "Отключить" : "Подключить рацию";
+  $("btnConnect").classList.toggle("primary", !on);
+  $("btnStop").disabled = !on; $("btnSweep").disabled = !on; $("btnListen").disabled = !on;
+}
+
+async function connect() {
+  $("msg").textContent = "";
+  if (!("serial" in navigator)) {
+    $("msg").textContent = "В этом браузере нет Web Serial. Откройте страницу в Chrome, Edge или другом Chromium.";
+    return;
+  }
+  const r = new Radio(onPacket, () => { $("msg").textContent = "Порт пропал. Переподключите кабель и нажмите «Подключить рацию»."; disconnect(true); });
+  try {
+    await r.open();
+  } catch (e) {
+    if (e.name !== "NotFoundError") $("msg").textContent = `Не удалось открыть порт: ${e.message}`;
+    return;
+  }
+  radio = r;
+  try {
+    $("link").textContent = "Связь с рацией…";
+    radio.version = await radio.hello();
+    lastRemoteT = 0;
+    await radio.send(CMD.START);
+    await applySweep();
+    await new Promise(res => setTimeout(res, 1500));
+    if (!lastRemoteT) throw new Error(`Рация ответила (${radio.version}), но режим remote не запустился. Скорее всего, прошита сборка без ENABLE_REMOTE: make clean && make PROFILE=sdr, прошить firmware.bin.`);
+    await setSpeed(+$("baud").value);
+    watchTimer = setInterval(async () => {
+      if (!radio || performance.now() - lastRemoteT <= 3000) return;
+      $("msg").textContent = "Рация не присылает данные: вышла из режима remote (EXIT на рации?). Нажмите «Панорама» или «Слушать», чтобы вернуть.";
+      if (radio.baud !== 38400 && !radio.reopening) {   // outside remote the radio talks 38400 again
+        radio.reopening = true;
+        try { await radio.reopen(38400); $("baud").value = "38400"; updateLink(); }
+        catch {} finally { radio.reopening = false; }
+      }
+    }, 1000);
+    keepTimer = setInterval(() => radio?.send(CMD.KEEPALIVE).catch(() => {}), 1000);
+    setConnected(true); updateLink();
+  } catch (e) {
+    $("msg").textContent = e.message;
+    await disconnect(true);
+  }
+}
+
+async function disconnect(silent) {
+  clearInterval(keepTimer); keepTimer = null;
+  clearInterval(watchTimer); watchTimer = null;
+  const r = radio; radio = null;
+  if (r) {
+    if (!silent) { try { await r.send(CMD.STOP); } catch {} }
+    await r.close();
+  }
+  setConnected(false);
+  $("link").textContent = "Рация не подключена. Вставьте кабель программирования и выберите его порт.";
+  status = { mode: 0 }; listenFreq = null; updateMeter();
+}
+
+$("btnConnect").onclick = () => radio ? disconnect() : connect();
+$("btnStop").onclick = async () => { await radio?.send(CMD.STOP); await disconnect(true); $("msg").textContent = "Рация вернулась в обычный режим."; };
+$("btnSweep").onclick = async () => { listenFreq = null; await radio?.send(CMD.START); applySweep(); };
+$("btnListen").onclick = () => applyListen();
+for (const id of ["step", "points", "ifbw", "dwell", "center"]) $(id).addEventListener("change", () => { if (id !== "ifbw" && id !== "dwell") $("preset").value = ""; applySweep(); });
+$("preset").addEventListener("change", () => {
+  if (!$("preset").value) return;
+  const [c, s, n] = $("preset").value.split(",");
+  $("center").value = c; $("step").value = s; $("points").value = n;
+  applySweep();
+});
+for (const id of ["lmod", "lbw", "sq", "mon"]) $(id).addEventListener("change", () => { if (status.mode === 1) applyListen(); });
+$("sq").addEventListener("input", () => { $("mSq").textContent = `порог ${$("sq").value} dBm`; });
+$("baud").addEventListener("change", async () => {
+  if (!radio) return;
+  clearInterval(keepTimer);
+  try { await setSpeed(+$("baud").value); }
+  finally { keepTimer = setInterval(() => radio?.send(CMD.KEEPALIVE).catch(() => {}), 1000); }
+});
+$("hold").addEventListener("change", () => { if (peak && avg) peak = avg.slice(); drawSpectrum(); });
+
+document.addEventListener("keydown", ev => {
+  if (ev.target.matches("input, select") || !radio) return;
+  if (ev.code === "Space") { ev.preventDefault(); status.mode === 1 ? applySweep() : applyListen(); }
+});
+window.addEventListener("resize", () => drawSpectrum());
+navigator.serial?.addEventListener("disconnect", () => { if (radio) { $("msg").textContent = "Кабель отключён."; disconnect(true); } });
+
+updateSpanText(); drawSpectrum(); fitCanvas(fallC);
+</script>
+</body>
+</html>

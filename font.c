@@ -509,7 +509,9 @@ const uint8_t gFontSmall[95-1][6] =
 
 
 //USING BY CEC FIRMWARE modified from gFont3x5 in ENABLE_SPECTRUM
-
+// (subset '+'..'Z'; the full table below replaces it when a fagci-style
+//  spectrum is built, see FONT3X5_FIRST in font.h)
+#if !defined(ENABLE_SPECTRUM) && !defined(ENABLE_SPECTRUM_WF)
 	const uint8_t gFont3x5[][3] =
 	{
 		/* FOR REDUCE PROGRAM MEMORY
@@ -618,11 +620,12 @@ const uint8_t gFontSmall[95-1][6] =
 		{0x12, 0x17, 0x12}, // 127 - plusminus
 */
 	};
+#endif
 
 
 
 
-#ifdef ENABLE_SPECTRUM
+#if defined(ENABLE_SPECTRUM) || defined(ENABLE_SPECTRUM_WF)
 	const uint8_t gFont3x5[][3] =
 	{
 		{0x00, 0x00, 0x00}, //  32 - space

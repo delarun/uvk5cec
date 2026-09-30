@@ -38,9 +38,9 @@
 //#include <avr/pgmspace.h>
 #include <stdint.h>
 #include "driver/system.h"
-#include "driver\backlight.h"
+#include "driver/backlight.h"
 
-#include "driver\uart.h"
+#include "driver/uart.h"
 
 #define CW_KEY_IDL           -1
 #define CW_KEY_DIT            1

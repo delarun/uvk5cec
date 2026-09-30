@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <math.h>
 #include <stdio.h>
-#include "driver\bk4819.h"
-#include "driver\keyboard.h"
+#include "driver/bk4819.h"
+#include "driver/keyboard.h"
 #include "audio.h"
 #include "string.h"
 #include <stdint.h>

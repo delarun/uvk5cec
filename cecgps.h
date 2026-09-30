@@ -4,10 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "driver/system.h"
-#include "driver\backlight.h"
-#include "driver\uart.h"
+#include "driver/backlight.h"
+#include "driver/uart.h"
 #include "minmea.h"
-#include "ui\helper.h"
+#include "ui/helper.h"
 
 #include "driver/st7565.h"
 #include "external/printf/printf.h"

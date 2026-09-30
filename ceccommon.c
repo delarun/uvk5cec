@@ -17,15 +17,15 @@
 #include "ceccommon.h"
 #include "cecsstv1.h"
 #include "cecmorse.h"
-#include "bsp\dp32g030\portcon.h"
-#include "bsp\dp32g030\syscon.h"
-#include "bsp\dp32g030\saradc.h"
+#include "bsp/dp32g030/portcon.h"
+#include "bsp/dp32g030/syscon.h"
+#include "bsp/dp32g030/saradc.h"
 #include "driver/adc.h"
 #include "radio.h"
-#include "driver\st7565.h"
+#include "driver/st7565.h"
 #include "misc.h"
 #include "settings.h"
-#include "driver\keyboard.h"
+#include "driver/keyboard.h"
 #include "functions.h"
 #include "audio.h"
 
@@ -117,6 +117,19 @@ uint8_t lastSeekDirection = 0;
 uint32_t rssiStartFreq = 0;
 uint32_t addRssiCount = 0;
 uint8_t DigitalMode = 0;  //OFF
+
+// Globals normally owned by optional modules (kept so shared settings code links)
+#ifndef ENABLE_CEC_SSTV
+uint8_t SSTV_Protocol = 0;
+uint8_t SSTV_SendCW = 0;
+#endif
+#ifndef ENABLE_CEC_APRS
+uint8_t aprs_MYSSID;
+#endif
+#ifndef ENABLE_CEC_FT4_FT8
+uint8_t ScreenDelayTime = 0;
+uint8_t ScreenLockMode = 0;
+#endif
 
 
 /*
@@ -229,11 +242,13 @@ void CEC_TimeSlice500ms(void)
         }
     }
 
+#ifdef ENABLE_CEC_SSTV
     if (SSTV_LCD_Start_Timer > 0)
     {
         if (--SSTV_LCD_Start_Timer == 0)
             StartSSTVM1(2);	//LCD SCREEN
     }    
+#endif
 }
 
 //Frequency Apply Receive Mode
@@ -788,7 +803,7 @@ void CEC_DisplaySmallest(const char *pString, uint8_t x, uint8_t y, bool statusb
   {
     if (c >= 0x2A)
     {
-        c -= 0x2B;
+        c -= FONT3X5_FIRST;
 
         for (int i = 0; i < 3; ++i) 
         {

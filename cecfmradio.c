@@ -1,31 +1,31 @@
 #include <stdbool.h>
 #include <math.h>
 #include <stdio.h>
-#include "driver\bk4819.h"
-#include "driver\keyboard.h"
+#include "driver/bk4819.h"
+#include "driver/keyboard.h"
 #include "audio.h"
 #include "string.h"
 #include <stdint.h>
 #include <string.h>
 #include "external/printf/printf.h"
-#include "driver\eeprom.h"
+#include "driver/eeprom.h"
 #include "misc.h"
 #include "radio.h"
-#include "driver\system.h"
-#include "driver\st7565.h"
+#include "driver/system.h"
+#include "driver/st7565.h"
 #include "settings.h"
-#include "driver\systick.h"
-#include "ui\helper.h"
-#include "ui\ui.h"
-#include "ui\main.h"
+#include "driver/systick.h"
+#include "ui/helper.h"
+#include "ui/ui.h"
+#include "ui/main.h"
 #include "font.h"
 #include "functions.h"
-#include "app\app.h"
-#include "ui\helper.h"
-#include "driver\uart.h"
-#include "bsp\dp32g030\uart.h"
-#include "bsp\dp32g030\dma.h"
-#include "bsp\dp32g030\syscon.h"
+#include "app/app.h"
+#include "ui/helper.h"
+#include "driver/uart.h"
+#include "bsp/dp32g030/uart.h"
+#include "bsp/dp32g030/dma.h"
+#include "bsp/dp32g030/syscon.h"
 #include "ceccommon.h"
 #include "bitmaps.h"
 #include "driver/bk1080-regs.h"
@@ -158,7 +158,7 @@ static void CEC_DisplaySmallest(const char *pString, uint8_t x, uint8_t y,
   {
     if (c >= 0x2A)
     {
-        c -= 0x2B;
+        c -= FONT3X5_FIRST;
 
         for (int i = 0; i < 3; ++i) 
         {

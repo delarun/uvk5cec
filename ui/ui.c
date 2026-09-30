@@ -36,6 +36,9 @@
 #include "ui/scanner.h"
 #include "ui/ui.h"
 #include "../misc.h"
+#ifdef ENABLE_HERMES
+	#include "hermes/hermes.h"
+#endif
 
 GUI_DisplayType_t gScreenToDisplay;
 GUI_DisplayType_t gRequestDisplayScreen = DISPLAY_INVALID;
@@ -56,6 +59,10 @@ void (*UI_DisplayFunctions[])(void) = {
 
 #ifdef ENABLE_AIRCOPY
 	[DISPLAY_AIRCOPY] = &UI_DisplayAircopy,
+#endif
+
+#ifdef ENABLE_HERMES
+	[DISPLAY_HERMES] = &UI_DisplayHermes,
 #endif
 };
 

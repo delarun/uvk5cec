@@ -100,7 +100,9 @@ bool PttPressWithMenuItem(bool bKeyPressed, bool bKeyHeld, bool _runProcess)
 				//if (UI_MENU_GetCurrentMenuId() == MENU_APRS_SEND || (UI_MENU_GetCurrentMenuId() == MENU_RIGINFO && gSubMenuSelection == 7))
 				if (UI_MENU_GetCurrentMenuId() == MENU_APRS_SEND)
 				{
+#ifdef ENABLE_CEC_APRS
 					CEC_APRS_SEND(gSubMenuSelection);
+#endif
 					/*
 					//62232
 					if (gSubMenuSelection == 0)	//STATUS
@@ -121,9 +123,10 @@ bool PttPressWithMenuItem(bool bKeyPressed, bool bKeyHeld, bool _runProcess)
 						ST7565_BlitFullScreen();
 						SYSTEM_DelayMs(2000);
 					}
+#ifdef ENABLE_CEC_SSTV
 					else
 						StartSSTVM1(gSubMenuSelection);
-
+#endif
 				}
 			}
 			
@@ -578,10 +581,12 @@ void MENU_AcceptSetting(void)
 
 		case MENU_CWKEY : 
 			CW_KeyType = gSubMenuSelection;
+#ifdef ENABLE_CEC_CWTX
 			if (CW_Mode != CWMODE_NONE)
 			{
 				InitRX1Mode();
 			}
+#endif
 			//Init CWMode
 			break;
 		
@@ -626,7 +631,9 @@ void MENU_AcceptSetting(void)
 			SSTV_SendCW = gSubMenuSelection;
 			break;
 		case MENU_WSPR_SEND:
+#ifdef ENABLE_CEC_FT4_FT8
 			DigitalModeStart(2);
+#endif
 			//CEC_SendWSPR();
 			break;
 

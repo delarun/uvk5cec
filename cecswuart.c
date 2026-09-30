@@ -1,23 +1,23 @@
 #include "cecmorse.h"
 #include <string.h>
 #include <stdio.h>     // NULL
-#include "driver\bk4819.h"
+#include "driver/bk4819.h"
 #include "bsp/dp32g030/portcon.h"
 #include "bsp/dp32g030/saradc.h"
 #include "bsp/dp32g030/syscon.h"
 #include "driver/adc.h"
 #include "radio.h"
-#include "driver\st7565.h"
+#include "driver/st7565.h"
 #include "misc.h"
 #include "settings.h"
-#include "driver\keyboard.h"
+#include "driver/keyboard.h"
 #include "functions.h"
 #include "audio.h"
 #include "cecswuart.h"
 #include "external/printf/printf.h"
-#include "driver\systick.h"
+#include "driver/systick.h"
 #include "ceccommon.h"
-#include "driver\crc.h"
+#include "driver/crc.h"
 
 void WriteFMLog3(char *writeMessage, char *writeMessage2, int delayMS)
 {

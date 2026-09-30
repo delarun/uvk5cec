@@ -27,8 +27,10 @@
 #include "app/main.h"
 #include "app/scanner.h"
 
-#ifdef ENABLE_SPECTRUM
+#if defined(ENABLE_SPECTRUM)
 #include "app/spectrum.h"
+#elif defined(ENABLE_SPECTRUM_WF)
+void APP_RunSpectrum(void);		// app/spectrum_wf.c
 #endif
 
 #include "audio.h"
@@ -43,6 +45,12 @@
 #include "ui/ui.h"
 #include <stdlib.h>
 #include "ceccommon.h"
+#ifdef ENABLE_HERMES
+	#include "hermes/hermes.h"
+#endif
+#ifdef ENABLE_REMOTE
+	#include "app/remote.h"
+#endif
 
 void toggle_chan_scanlist(void)
 {	// toggle the selected channels scanlist setting
@@ -90,7 +98,9 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
 	{
 		case KEY_0:
 			//Changed FM Radio for reduce program memory , goal is 1/3 using program memory
+#ifdef ENABLE_CEC_FMRADIO
 			CEC_FMRadio();
+#endif
 			#ifdef ENABLE_FMRADIO
 			//	ACTION_FM();
 			#else
@@ -205,8 +215,14 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
 			break;
 
 		case KEY_5:
+#if defined(ENABLE_CEC_SPECTRUM)
 			CEC_Spectrum_WithWaterFall();
 			break;
+#elif defined(ENABLE_SPECTRUM_WF)
+			APP_RunSpectrum();			// deltafw spectrum analyzer / waterfall
+			gRequestDisplayScreen = DISPLAY_MAIN;
+			break;
+#endif
 			if(beep) {
 #ifdef ENABLE_NOAA
 
@@ -543,6 +559,8 @@ static void MAIN_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
 
 		if (bKeyPressed)
 		{	// long press MENU key
+			const bool bWasF = gWasFKeyPressed;
+			(void)bWasF;
 
 			gWasFKeyPressed = false;
 
@@ -561,7 +579,18 @@ static void MAIN_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
 				ACTION_Handle(KEY_MENU, bKeyPressed, bKeyHeld);
 				*/
 				//CEC_Spectrum_WithWaterFall();
-				DigitalModeStart(0);	//WSPR MODE (Stand alone) 0:FT8, 1 : FT4, 2: WSPR
+#if defined(ENABLE_HERMES) && defined(ENABLE_REMOTE)
+				if (bWasF)
+					REMOTE_Open();		// F + long MENU : PC remote (tools/remote.html)
+				else
+					HERMES_Open();		// long MENU : Hermes Link mesh messenger
+#elif defined(ENABLE_HERMES)
+				HERMES_Open();			// long MENU : Hermes Link mesh messenger
+#elif defined(ENABLE_REMOTE)
+				REMOTE_Open();			// long MENU : PC remote (tools/remote.html)
+#elif defined(ENABLE_CEC_FT4_FT8)
+				DigitalModeStart(0);
+#endif	//WSPR MODE (Stand alone) 0:FT8, 1 : FT4, 2: WSPR
 				//DigitalModeStart(1);	//WSPR MODE (Stand alone) 0:FT8, 1 : FT4, 2: WSPR
 				//DigitalModeStart(2);	//WSPR MODE (Stand alone) 0:FT8, 1 : FT4, 2: WSPR
 				//DigitalModeStart(3);	//WSPR MODE (Stand alone) 0:FT8, 1 : FT4, 2: WSPR

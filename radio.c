@@ -38,6 +38,9 @@
 #include "ui/menu.h"
 #include "ceccommon.h"
 #include "cecmorse.h"
+#ifdef ENABLE_HERMES
+	#include "hermes/hermes.h"
+#endif
 
 VFO_Info_t    *gTxVfo;
 VFO_Info_t    *gRxVfo;
@@ -778,6 +781,10 @@ void RADIO_SetupRegisters(bool switchToForeground)
 #endif
 
 	RADIO_SetupAGC(gRxVfo->Modulation == MODULATION_AM, false);
+
+#ifdef ENABLE_HERMES
+	InterruptMask |= HERMES_SetupRx();	// background Hermes FSK receiver
+#endif
 
 	// enable/disable BK4819 selected interrupts
 	BK4819_WriteRegister(BK4819_REG_3F, InterruptMask);

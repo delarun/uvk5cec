@@ -23,6 +23,9 @@
 	#include "app/fm.h"
 #endif
 #include "app/uart.h"
+#ifdef ENABLE_REMOTE
+	#include "app/remote.h"
+#endif
 #include "board.h"
 #include "bsp/dp32g030/dma.h"
 #include "bsp/dp32g030/gpio.h"
@@ -192,6 +195,14 @@ static void SendReply(void *pReply, uint16_t Size)
 
 	UART_Send(&Footer, sizeof(Footer));
 }
+
+#ifdef ENABLE_REMOTE
+// used by app/remote.c to stream sweep / status packets with the same framing
+void UART_SendPacket(void *pReply, uint16_t Size)
+{
+	SendReply(pReply, Size);
+}
+#endif
 
 static void SendVersion(void)
 {
@@ -661,6 +672,13 @@ void UART_HandleCommand(void)
 		
 		case 0x0602:
 			CMD_0602_WriteBK4819Reg(UART_Command.Buffer);
+			break;
+#endif
+
+#ifdef ENABLE_REMOTE
+		default:
+			if ((UART_Command.Header.ID & 0xFF00) == 0x0A00)
+				REMOTE_HandleCommand(UART_Command.Buffer);
 			break;
 #endif
 	}

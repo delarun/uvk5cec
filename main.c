@@ -50,6 +50,9 @@
 #include "ui/welcome.h"
 #include "ui/menu.h"
 #include "ceccommon.h"
+#ifdef ENABLE_HERMES
+	#include "hermes/hermes.h"
+#endif
 
 void _putchar(__attribute__((unused)) char c)
 {
@@ -99,6 +102,10 @@ void Main(void)
 	SETTINGS_InitEEPROM();
 	SETTINGS_WriteBuildOptions();
 	SETTINGS_LoadCalibration();
+
+#ifdef ENABLE_HERMES
+	HERMES_Boot();
+#endif
 
 	RADIO_ConfigureChannel(0, VFO_CONFIGURE_RELOAD);
 	RADIO_ConfigureChannel(1, VFO_CONFIGURE_RELOAD);
@@ -227,6 +234,7 @@ void Main(void)
 	//DigitalModeStart(99);	//WSPR MODE (Stand alone) 0:FT8, 1 : FT4, 2: WSPR
 	//CEC_FMRadio();
 
+#ifdef ENABLE_CEC_FT4_FT8
 if (DigitalMode)
 {
   CEC_SendRemoteData(0x21, 0xB1 /* CEC_CMD_REBOOT */, 0, 0, 0);
@@ -237,12 +245,15 @@ if (DigitalMode)
     UART_Init(UART_BAUD_57600_CLOCK_DIV);
 #endif    
 }
+#endif
 
 	while (true) {
 		APP_Update();
 
+#ifdef ENABLE_CEC_FT4_FT8
 		if (DigitalMode)
 			ProcessRemoteControl(0);
+#endif
 
 		if (gNextTimeslice) {
 
