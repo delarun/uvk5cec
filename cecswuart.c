@@ -2,9 +2,6 @@
 #include <string.h>
 #include <stdio.h>     // NULL
 #include "driver/bk4819.h"
-#include "bsp/dp32g030/portcon.h"
-#include "bsp/dp32g030/saradc.h"
-#include "bsp/dp32g030/syscon.h"
 #include "driver/adc.h"
 #include "radio.h"
 #include "driver/st7565.h"
@@ -14,6 +11,7 @@
 #include "functions.h"
 #include "audio.h"
 #include "cecswuart.h"
+#include "driver/uart.h"
 #include "external/printf/printf.h"
 #include "driver/systick.h"
 #include "ceccommon.h"
@@ -31,26 +29,8 @@ void WriteFMLog3(char *writeMessage, char *writeMessage2, int delayMS)
 
 uint16_t GetUartADC(void)
 {
-	//uint16_t readBuff[5] = {0};
-	uint16_t maxReadValue = 0;
-	uint16_t nowReadValue = 0;
-	int i;
-	ADC_SoftReset();
-	ADC_Start();
-	while (!ADC_CheckEndOfConversion(ADC_CH3)) {}
-    nowReadValue = ADC_GetValue(ADC_CH3);
-    /*
-	for (i = 0; i < 5; i++)
-	{
-		nowReadValue = ADC_GetValue(ADC_CH3);;
-		if (nowReadValue > maxReadValue)
-			maxReadValue = nowReadValue;
-		//SYSTEM_DelayMs(1);
-    SYSTICK_DelayUs(500); //3 * 5= 2.5ms
-	}
-    */
-
-	return nowReadValue;
+	//UV-K5 V3 / UV-K1: no ADC on the K-plug RX line, sample it digitally
+	return UART_IsRxPinHigh() ? 4095 : 0;
 }
 //9600 에서는 19만큼 빼주니까 좋다.
 #define baud 9600
@@ -126,7 +106,7 @@ uint8_t CECUartCommand(uint8_t _option1)
     uint8_t _dataLength = 0;
     uint8_t _uartReadStep = 0;  //0 : READY, 1:STX1, 2:STX2, LEN1, LEN2
 
-    if (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT))
+    if (GPIO_IsPttPressed())
         return 1;
 
     while(1)

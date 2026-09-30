@@ -27,9 +27,6 @@
 	#include "app/remote.h"
 #endif
 #include "board.h"
-#include "bsp/dp32g030/dma.h"
-#include "bsp/dp32g030/gpio.h"
-#include "driver/aes.h"
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
 #include "driver/crc.h"
@@ -223,20 +220,10 @@ static void SendVersion(void)
 
 static bool IsBadChallenge(const uint32_t *pKey, const uint32_t *pIn, const uint32_t *pResponse)
 {
-	unsigned int i;
-	uint32_t     IV[4];
-
-	IV[0] = 0;
-	IV[1] = 0;
-	IV[2] = 0;
-	IV[3] = 0;
-
-	AES_Encrypt(pKey, IV, pIn, IV, true);
-
-	for (i = 0; i < 4; i++)
-		if (IV[i] != pResponse[i])
-			return true;
-
+	// The PY32F071 has no AES block, the challenge is not verified
+	(void)pKey;
+	(void)pIn;
+	(void)pResponse;
 	return false;
 }
 
@@ -487,12 +474,12 @@ static void CMD_0602_WriteBK4819Reg(const uint8_t *pBuffer)
 extern uint8_t CECSWUart_LastError;
 uint8_t CECHWUartClearBuffer(void)
 {
-	gUART_WriteIndex = DMA_CH0->ST & 0xFFFU;
+	gUART_WriteIndex = UART_GetDmaWriteIndex();
 }
 
 uint8_t IsUartEmpty()
 {
-	return (gUART_WriteIndex == (DMA_CH0->ST & 0xFFFU));
+	return (gUART_WriteIndex == (UART_GetDmaWriteIndex()));
 }
 
 uint8_t CECHWUartReadByte(int _timeoutCount)
@@ -501,7 +488,7 @@ uint8_t CECHWUartReadByte(int _timeoutCount)
 
 	while (1)
 	{
-		DmaLength = DMA_CH0->ST & 0xFFFU;
+		DmaLength = UART_GetDmaWriteIndex();
 		if (gUART_WriteIndex == DmaLength)
 		{
 			if (--_timeoutCount < 10)
@@ -531,9 +518,9 @@ bool UART_IsCommandAvailable(void)
 	uint16_t Index;
 	uint16_t TailIndex;
 	uint16_t Size;
-	uint16_t CRC;
+	uint16_t Crc;
 	uint16_t CommandLength;
-	uint16_t DmaLength = DMA_CH0->ST & 0xFFFU;
+	uint16_t DmaLength = UART_GetDmaWriteIndex();
 
 	while (1)
 	{
@@ -614,9 +601,9 @@ bool UART_IsCommandAvailable(void)
 			UART_Command.Buffer[i] ^= Obfuscation[i % 16];
 	}
 	
-	CRC = UART_Command.Buffer[Size] | (UART_Command.Buffer[Size + 1] << 8);
+	Crc = UART_Command.Buffer[Size] | (UART_Command.Buffer[Size + 1] << 8);
 
-	return (CRC_Calculate(UART_Command.Buffer, Size) != CRC) ? false : true;
+	return (CRC_Calculate(UART_Command.Buffer, Size) != Crc) ? false : true;
 }
 
 void UART_HandleCommand(void)

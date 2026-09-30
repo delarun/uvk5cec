@@ -23,13 +23,9 @@
 #include "app/app.h"
 #include "ui/helper.h"
 #include "driver/uart.h"
-#include "bsp/dp32g030/uart.h"
-#include "bsp/dp32g030/dma.h"
-#include "bsp/dp32g030/syscon.h"
 #include "ceccommon.h"
 #include "bitmaps.h"
 #include "driver/bk1080-regs.h"
-#include "bsp/dp32g030/gpio.h"
 #include "driver/gpio.h"
 #include "driver/i2c.h"
 #include "driver/system.h"
@@ -81,7 +77,6 @@ const uint16_t BK1080_RegisterTable[] =
 
     if (_controlCmd == CEC_FM_STARTUP)
     {
-		GPIO_ClearBit(&GPIOB->DATA, GPIOB_PIN_BK1080);
 
 		if (BK1080_Status < 1)
 		{
@@ -110,7 +105,6 @@ const uint16_t BK1080_RegisterTable[] =
     else if (_controlCmd == CEC_FM_STOP)
     {
 		BK1080_WriteRegister(BK1080_REG_02_POWER_CONFIGURATION, 0x0241);
-		GPIO_SetBit(&GPIOB->DATA, GPIOB_PIN_BK1080);
     }
     else if (_controlCmd == CEC_FM_SOUNDONOFF)
     {

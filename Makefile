@@ -117,7 +117,6 @@ ENABLE_UART_RW_BK_REGS        ?= 0
 # ---- COMPILER/LINKER OPTIONS ----
 ENABLE_CLANG                  ?= 0
 ENABLE_SWD                    ?= 0
-ENABLE_OVERLAY                ?= 0
 ENABLE_LTO                    ?= 1
 
 
@@ -141,22 +140,20 @@ ifeq ($(ENABLE_CLANG),1)
 	ENABLE_LTO := 0
 endif
 
-ifeq ($(ENABLE_LTO),1)
-	# can't have LTO and OVERLAY enabled at same time
-	ENABLE_OVERLAY := 0
-endif
 
-BSP_DEFINITIONS := $(wildcard hardware/*/*.def)
-BSP_HEADERS     := $(patsubst hardware/%,bsp/%,$(BSP_DEFINITIONS))
-BSP_HEADERS     := $(patsubst %.def,%.h,$(BSP_HEADERS))
 
 OBJS =
-# Startup files
-OBJS += start.o
-OBJS += init.o
-ifeq ($(ENABLE_OVERLAY),1)
-	OBJS += sram-overlay.o
-endif
+# Startup files (PY32F071: UV-K5 V3 / UV-K1)
+OBJS += py32/startup_py32f071xx.o
+OBJS += py32/system_py32f071.o
+OBJS += py32/ll/src/py32f071_ll_adc.o
+OBJS += py32/ll/src/py32f071_ll_dma.o
+OBJS += py32/ll/src/py32f071_ll_gpio.o
+OBJS += py32/ll/src/py32f071_ll_rcc.o
+OBJS += py32/ll/src/py32f071_ll_spi.o
+OBJS += py32/ll/src/py32f071_ll_tim.o
+OBJS += py32/ll/src/py32f071_ll_usart.o
+OBJS += py32/ll/src/py32f071_ll_utils.o
 OBJS += external/printf/printf.o
 
 #################### ADDED BY KD8CEC  ###################
@@ -207,9 +204,6 @@ endif
 
 # Drivers
 OBJS += driver/adc.o
-ifeq ($(ENABLE_UART),1)
-	OBJS += driver/aes.o
-endif
 OBJS += driver/backlight.o
 ifeq ($(ENABLE_FMRADIO),1)
 	OBJS += driver/bk1080.o
@@ -219,13 +213,9 @@ ifeq ($(filter $(ENABLE_AIRCOPY) $(ENABLE_UART),1),1)
 	OBJS += driver/crc.o
 endif
 OBJS += driver/eeprom.o
-ifeq ($(ENABLE_OVERLAY),1)
-	OBJS += driver/flash.o
-endif
-OBJS += driver/gpio.o
+OBJS += driver/py25q16.o
 OBJS += driver/i2c.o
 OBJS += driver/keyboard.o
-OBJS += driver/spi.o
 OBJS += driver/st7565.o
 OBJS += driver/system.o
 OBJS += driver/systick.o
@@ -342,22 +332,19 @@ AUTHOR_STRING ?= KD8CEC_FROM_SOURCE_CODE_EGZUMER
 VERSION_STRING ?= CEC_0.3V
 
 
-ASFLAGS = -c -mcpu=cortex-m0
-ifeq ($(ENABLE_OVERLAY),1)
-	ASFLAGS += -DENABLE_OVERLAY
-endif
+ASFLAGS = -c -mcpu=cortex-m0plus -mthumb
 
 CFLAGS =
 ifeq ($(ENABLE_CLANG),0)
-	CFLAGS += -Os -mcpu=cortex-m0 -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c11 -MMD
-	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0 -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c2x -MMD
-	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0 -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c11 -MMD
-	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0 -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c99 -MMD
-	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0 -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=gnu99 -MMD
-	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0 -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=gnu11 -MMD
+	CFLAGS += -Os -mcpu=cortex-m0plus -mthumb -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c11 -MMD
+	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0plus -mthumb -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c2x -MMD
+	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0plus -mthumb -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c11 -MMD
+	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0plus -mthumb -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c99 -MMD
+	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0plus -mthumb -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=gnu99 -MMD
+	#CFLAGS += -Os -Wall -Werror -mcpu=cortex-m0plus -mthumb -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=gnu11 -MMD
 else
 	# Oz needed to make it fit on flash
-	CFLAGS += -Oz -Wall -Werror -mcpu=cortex-m0 -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c2x -MMD
+	CFLAGS += -Oz -Wall -Werror -mcpu=cortex-m0plus -mthumb -fno-builtin -fshort-enums -fno-delete-null-pointer-checks -std=c2x -MMD
 endif
 
 ifeq ($(ENABLE_LTO),1)
@@ -375,6 +362,7 @@ CFLAGS += -Wextra
 #CFLAGS += -Wpedantic
 
 CFLAGS += -DPRINTF_INCLUDE_CONFIG_H
+CFLAGS += -DPY32F071x8 -DUSE_FULL_LL_DRIVER
 CFLAGS += -DAUTHOR_STRING=\"$(AUTHOR_STRING)\" -DVERSION_STRING=\"$(VERSION_STRING)\"
 
 ifeq ($(ENABLE_CEC_INTERFACE_CABLE),1)
@@ -425,9 +413,6 @@ endif
 ifeq ($(ENABLE_SWD),1)
 	CFLAGS += -DENABLE_SWD
 endif
-ifeq ($(ENABLE_OVERLAY),1)
-	CFLAGS += -DENABLE_OVERLAY
-endif
 ifeq ($(ENABLE_AIRCOPY),1)
 	CFLAGS += -DENABLE_AIRCOPY
 endif
@@ -447,6 +432,7 @@ ifeq ($(ENABLE_NOAA),1)
 	CFLAGS  += -DENABLE_NOAA
 endif
 ifeq ($(ENABLE_VOICE),1)
+$(error ENABLE_VOICE: the UV-K5 V3 / UV-K1 have no voice chip)
 	CFLAGS  += -DENABLE_VOICE
 endif
 ifeq ($(ENABLE_VOX),1)
@@ -613,7 +599,7 @@ endif
 
 
 LDFLAGS =
-LDFLAGS += -z noexecstack -mcpu=cortex-m0 -nostartfiles -Wl,-T,firmware.ld -Wl,--gc-sections
+LDFLAGS += -z noexecstack -mcpu=cortex-m0plus -mthumb -nostartfiles -Wl,-T,firmware.ld -Wl,--gc-sections
 
 # Use newlib-nano instead of newlib
 LDFLAGS += --specs=nano.specs
@@ -626,8 +612,10 @@ endif
 
 INC =
 INC += -I $(TOP)
-INC += -I $(TOP)/external/CMSIS_5/CMSIS/Core/Include/
-INC += -I $(TOP)/external/CMSIS_5/Device/ARM/ARMCM0/Include
+INC += -I $(TOP)/py32
+INC += -I $(TOP)/py32/cmsis
+INC += -I $(TOP)/py32/device
+INC += -I $(TOP)/py32/ll/inc
 
 LIBS =
 
@@ -663,12 +651,6 @@ endif
 
 	$(SIZE) $<
 
-debug:
-	/opt/openocd/bin/openocd -c "bindto 0.0.0.0" -f interface/jlink.cfg -f dp32g030.cfg
-
-flash:
-	/opt/openocd/bin/openocd -c "bindto 0.0.0.0" -f interface/jlink.cfg -f dp32g030.cfg -c "write_image firmware.bin 0; shutdown;"
-
 version.o: .FORCE
 
 # Rebuild every object when the feature flags (CFLAGS/LDFLAGS) change;
@@ -683,12 +665,10 @@ $(TARGET): $(OBJS)
 	@rm -f $@ $@.bin $@.packed.bin
 	$(LD) $(LDFLAGS) $(OBJS) -o $@ $(LIBS)
 
-bsp/dp32g030/%.h: hardware/dp32g030/%.def
-
-%.o: %.c | $(BSP_HEADERS)
+%.o: %.c
 	$(CC) $(CFLAGS) $(INC) -c $< -o $@
 
-%.o: %.S
+%.o: %.s
 	$(AS) $(ASFLAGS) $< -o $@
 
 .FORCE:

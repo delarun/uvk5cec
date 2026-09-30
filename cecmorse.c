@@ -1,10 +1,8 @@
 #include "cecmorse.h"
+#include "driver/uart.h"
 #include <string.h>
 #include <stdio.h>     // NULL
 #include "driver/bk4819.h"
-#include "bsp/dp32g030/portcon.h"
-#include "bsp/dp32g030/saradc.h"
-#include "bsp/dp32g030/syscon.h"
 #include "driver/adc.h"
 #include "radio.h"
 #include "driver/st7565.h"
@@ -290,23 +288,18 @@ uint16_t GetCWADC(void)
   if (DigitalMode)
     return 0;
 
-	//uint16_t readBuff[5] = {0};
-	uint16_t maxReadValue = 0;
-	uint16_t nowReadValue = 0;
-	int i;
-	ADC_SoftReset();
-	ADC_Start();
-	while (!ADC_CheckEndOfConversion(ADC_CH3)) {}
-	for (i = 0; i < 5; i++)
-	{
-		nowReadValue = ADC_GetValue(ADC_CH3);;
-		if (nowReadValue > maxReadValue)
-			maxReadValue = nowReadValue;
-		//SYSTEM_DelayMs(1);
-    SYSTICK_DelayUs(500); //3 * 5= 2.5ms
-	}
+  //UV-K5 V3 / UV-K1: the K-plug RX line is not an ADC input on the PY32F071.
+  //It is sampled as a digital input (pulled down), a closed key reads as DIT
+  //so a straight key or a single paddle contact still works.
+  uint8_t isKeyDown = 0;
+  for (int i = 0; i < 5; i++)
+  {
+    if (UART_IsRxPinHigh())
+      isKeyDown = 1;
+    SYSTICK_DelayUs(500); //5 * 0.5 = 2.5ms
+  }
 
-	return maxReadValue;
+  return isKeyDown ? (CW_ADC.CWKKEY_DIT_AdcFrom + CW_ADC.CWKKEY_DAH_AdcFrom) / 2 : 0;
 }
 
 #define KEYBOARD_POLLING_MIN_INTERVAL 1 //ms
@@ -370,7 +363,7 @@ unsigned char update_PaddleLatch(uint8_t isUpdateKeyState)
 uint8_t GetK_KeyStatus()
 {
   uint8_t isMenuPress = KEYBOARD_Poll() == KEY_MENU;
-  uint8_t isPttPress = !GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT);
+  uint8_t isPttPress = GPIO_IsPttPressed();
   SYSTEM_DelayMs(KEYBOARD_POLLING_MIN_INTERVAL);
 
     if (isMenuPress && isPttPress)
@@ -389,7 +382,7 @@ uint8_t GetCWKeyStatus()
   if (CW_KeyType == CW_KEYTYPE_KEYPAD_PDL || CW_KeyType == CW_KEYTYPE_KEYPAD_ST)
   {
     uint8_t isMenuPress = KEYBOARD_Poll() == KEY_MENU;
-    uint8_t isPttPress = !GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT);
+    uint8_t isPttPress = GPIO_IsPttPressed();
     SYSTEM_DelayMs(KEYBOARD_POLLING_MIN_INTERVAL);
 
       if (isMenuPress && isPttPress)
@@ -665,7 +658,7 @@ void CWTXStart(uint8_t isDecoding, uint8_t justStart)
     justStart = 0;
     isHoldMode = 1;
     //WAIT FOR PTT RELEASE
-    while (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT))
+    while (GPIO_IsPttPressed())
       SYSTEM_DelayMs(100);
 
     CWDecodedChar(' ', 200, autoSpaceCheck, cwTXScreenMode); //refresh      
@@ -964,9 +957,9 @@ void CWTXStart(uint8_t isDecoding, uint8_t justStart)
       /*  //Using KEY PAD
       else
       {
-        if (isHoldMode && (! GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT)))
+        if (isHoldMode && (GPIO_IsPttPressed()))
         {
-          while (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT))
+          while (GPIO_IsPttPressed())
             SYSTEM_DelayMs(100);
           break;
         }

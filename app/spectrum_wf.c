@@ -15,7 +15,6 @@
  */
 #include "app/spectrum_wf.h"
 #include "driver/eeprom.h"
-#include "bsp/dp32g030/gpio.h"
 #include "driver/gpio.h"
 #include "am_fix.h"
 #include "audio.h"
@@ -62,11 +61,6 @@ static void UI_PrintStringSmallest(const char *pString, uint8_t x, uint8_t y, bo
         }
         x += 4;
     }
-}
-
-static inline bool GPIO_IsPttPressed(void)
-{
-    return !GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT);
 }
 
 #ifdef ENABLE_SPECTRUM_ADVANCED

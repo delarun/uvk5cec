@@ -2,9 +2,6 @@
 #include <string.h>
 #include <stdio.h>     // NULL
 #include "driver/bk4819.h"
-#include "bsp/dp32g030/portcon.h"
-#include "bsp/dp32g030/saradc.h"
-#include "bsp/dp32g030/syscon.h"
 #include "driver/adc.h"
 #include "radio.h"
 #include "driver/st7565.h"
@@ -23,7 +20,7 @@
 #define BK4819_REG_40_SHIFT_ENABLE_DEVIATION 12
 #define BK4819_REG_40_SHIFT_TX_DEVIATION 0
 
-#define ISPTTPRESS  (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT))
+#define ISPTTPRESS  (GPIO_IsPttPressed())
 
 uint32_t BasicFreq = 0;
 uint8_t nowMode = 0;    //0 : FT8, 1: APRS, 2:WSPR

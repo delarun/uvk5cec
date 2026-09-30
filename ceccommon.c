@@ -14,12 +14,11 @@
  *     limitations under the License.
  */
 
+#include "py32f0xx.h"
 #include "ceccommon.h"
+#include "driver/gpio.h"
 #include "cecsstv1.h"
 #include "cecmorse.h"
-#include "bsp/dp32g030/portcon.h"
-#include "bsp/dp32g030/syscon.h"
-#include "bsp/dp32g030/saradc.h"
 #include "driver/adc.h"
 #include "radio.h"
 #include "driver/st7565.h"
@@ -318,14 +317,6 @@ void CEC_ApplyChangeRXFreq(int _applyOption)
 }
 
 
-void UART_SendByte(uint8_t _sendByte)
-{
-	UART1->TDR = _sendByte;
-	while ((UART1->IF & UART_IF_TXFIFO_FULL_MASK) != UART_IF_TXFIFO_FULL_BITS_NOT_SET) {
-	}
-}
-
-
 void StoreCWMemory(int channelIndex, char * _srcBuff, uint8_t srcLen);
 
 char MaskingChar(char srcChar)
@@ -472,94 +463,21 @@ void SetRX1Mode(int rx1Mode)
 
   if (rx1Mode == 0) //GPIO
   {
-    //*************************************************************************************************
-    //Test OK  (by Ianlee) #2	//RX -> GPIO OUT
-    PORTCON_PORTA_SEL1 &= ~(PORTCON_PORTA_SEL1_A8_MASK);
-    PORTCON_PORTA_SEL1 |= PORTCON_PORTA_SEL1_A8_BITS_GPIOA8;
-    GPIOA->DIR |= GPIO_DIR_8_BITS_OUTPUT;
-    PORTCON_PORTA_IE &= ~(0 | PORTCON_PORTA_IE_A8_MASK);
-    PORTCON_PORTA_PU &= ~(0 | PORTCON_PORTA_PU_A8_MASK);
-    PORTCON_PORTA_PD &= ~(0 | PORTCON_PORTA_PD_A8_MASK);
-    PORTCON_PORTA_OD &= ~(0 | PORTCON_PORTA_OD_A8_MASK);
-
-    //GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);	//flash light
-    GPIO_SetBit(&GPIOA->DATA, 8);
-    //GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);	//flash light
-    GPIO_ClearBit(&GPIOA->DATA, 8);
-
-    //End of Test for GPIO  ***********************************************************************
+    UART_ReleaseRxPin(false);
   }
   else if (rx1Mode == 1)  //UART 38400
   {
     //SYSTEM DEFAULT
     UART_Init(UART_BAUD_38400_CLOCK_DIV);
   }
-  else if (rx1Mode == 2)  //ADC MODE FOR CWKEY
+  else if (rx1Mode == 2)  //CW KEY INPUT
   {
-      // *************************************************************************************************
-      //Test by Ianlee (OK) #1	//RX -> ADC로 (Success)
-      PORTCON_PORTA_SEL1 |= 0
-        // UART1 RX, wasn't cleared in previous step / relying on default value!
-        //| PORTCON_PORTA_SEL1_A8_BITS_UART1_RX
-        | PORTCON_PORTA_SEL1_A8_BITS_SARADC_CH3
-        // Battery voltage, wasn't cleared in previous step / relying on default value!
-        | PORTCON_PORTA_SEL1_A9_BITS_SARADC_CH4
-        // Key pad + I2C
-        | PORTCON_PORTA_SEL1_A10_BITS_GPIOA10
-        // Key pad + I2C
-        | PORTCON_PORTA_SEL1_A11_BITS_GPIOA11
-        // Key pad + Voice chip
-        | PORTCON_PORTA_SEL1_A12_BITS_GPIOA12
-        // Key pad + Voice chip
-        | PORTCON_PORTA_SEL1_A13_BITS_GPIOA13
-        // Battery Current, wasn't cleared in previous step / relying on default value!
-        | PORTCON_PORTA_SEL1_A14_BITS_SARADC_CH9
-        ;
-
-      ADC_Config_t Config;
-
-      Config.CLK_SEL            = SYSCON_CLK_SEL_W_SARADC_SMPL_VALUE_DIV2;
-      Config.CH_SEL             = ADC_CH4 | ADC_CH9 | ADC_CH3;
-      Config.AVG                = SARADC_CFG_AVG_VALUE_8_SAMPLE;
-      Config.CONT               = SARADC_CFG_CONT_VALUE_SINGLE;
-      Config.MEM_MODE           = SARADC_CFG_MEM_MODE_VALUE_CHANNEL;
-      Config.SMPL_CLK           = SARADC_CFG_SMPL_CLK_VALUE_INTERNAL;
-      Config.SMPL_WIN           = SARADC_CFG_SMPL_WIN_VALUE_15_CYCLE;
-      Config.SMPL_SETUP         = SARADC_CFG_SMPL_SETUP_VALUE_1_CYCLE;
-      Config.ADC_TRIG           = SARADC_CFG_ADC_TRIG_VALUE_CPU;
-      Config.CALIB_KD_VALID     = SARADC_CALIB_KD_VALID_VALUE_YES;
-      Config.CALIB_OFFSET_VALID = SARADC_CALIB_OFFSET_VALID_VALUE_YES;
-      Config.DMA_EN             = SARADC_CFG_DMA_EN_VALUE_DISABLE;
-      Config.IE_CHx_EOC         = SARADC_IE_CHx_EOC_VALUE_NONE;
-      Config.IE_FIFO_FULL       = SARADC_IE_FIFO_FULL_VALUE_DISABLE;
-      Config.IE_FIFO_HFULL      = SARADC_IE_FIFO_HFULL_VALUE_DISABLE;
-
-      ADC_Configure(&Config);
-      ADC_Enable();
-      ADC_SoftReset();
-
-
-      //PULL DOWN (already Hardware Pull Up and 3.5mm Connect without GND, so h/w pullup and h/w pull down -> almost 2.5 Volt, we using half range)
-      //PORTCON_PORTA_SEL1 &= ~(PORTCON_PORTA_SEL1_A8_MASK);
-      //PORTCON_PORTA_SEL1 |= PORTCON_PORTA_SEL1_A8_BITS_GPIOA8;
-      //GPIOA->DIR |= GPIO_DIR_8_BITS_INPUT;
-      //PORTCON_PORTA_IE &= ~(0 | PORTCON_PORTA_IE_A8_MASK);
-      PORTCON_PORTA_PU &= ~(0 | PORTCON_PORTA_PU_A8_MASK);
-      //PORTCON_PORTA_PU &= 0 | PORTCON_PORTA_PU_A8_BITS_ENABLE;
-      //PORTCON_PORTA_PD &= ~(0 | PORTCON_PORTA_PD_A8_MASK);
-      PORTCON_PORTA_PD |= 0 | PORTCON_PORTA_PD_A8_BITS_ENABLE;
-      //PORTCON_PORTA_OD &= ~(0 | PORTCON_PORTA_OD_A8_MASK);
-
-      //GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);	//flash light
-      //GPIO_SetBit(&GPIOA->DATA, 8);
-      //GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);	//flash light
-      //GPIO_ClearBit(&GPIOA->DATA, 8);
-
-      //End of ADC Test ***********************************************************************
+    //UV-K5 V3 / UV-K1: the K-plug RX line (PA10) has no ADC channel on the PY32F071,
+    //so the key is read as a digital input with the internal pull down enabled
+    UART_ReleaseRxPin(true);
   }
   else if (rx1Mode == 3) //GPS MODE BAUD 9600
   {
-    //UART_Init9600();
     UART_Init(UART_BAUD_9600_CLOCK_DIV);
   }
 }
@@ -867,25 +785,6 @@ void CEC_DisplaySmallest(const char *pString, uint8_t x, uint8_t y, bool statusb
 
 
 
-#define     __IM     volatile const      /*! Defines 'read only' structure member permissions */
-#define     __OM     volatile            /*! Defines 'write only' structure member permissions */
-#define     __IOM    volatile            /*! Defines 'read / write' structure member permissions */
-
-typedef struct
-{
-  __IOM uint32_t CTRL;                   /*!< Offset: 0x000 (R/W)  SysTick Control and Status Register */
-  __IOM uint32_t LOAD;                   /*!< Offset: 0x004 (R/W)  SysTick Reload Value Register */
-  __IOM uint32_t VAL;                    /*!< Offset: 0x008 (R/W)  SysTick Current Value Register */
-  __IM  uint32_t CALIB;                  /*!< Offset: 0x00C (R/ )  SysTick Calibration Register */
-} SysTick_Type;
-
-#define SCS_BASE            (0xE000E000UL)                            /*!< System Control Space Base Address */
-#define SysTick_BASE        (SCS_BASE +  0x0010UL)                    /*!< SysTick Base Address */
-#define NVIC_BASE           (SCS_BASE +  0x0100UL)                    /*!< NVIC Base Address */
-#define SCB_BASE            (SCS_BASE +  0x0D00UL)                    /*!< System Control Block Base Address */
-
-#define SysTick             ((SysTick_Type   *)     SysTick_BASE  )   /*!< SysTick configuration struct */
-
 void SYSTICK_DelayUs_HS(uint32_t Delay)
 {
 	const uint32_t ticks    = Delay * 2;
@@ -902,52 +801,45 @@ void SYSTICK_DelayUs_HS(uint32_t Delay)
 	} while (i < ticks);
 }
 
-//#define SYSTICK_DelayUs_HS SYSTICK_DelayUs 
-
 static uint16_t BK4819_ReadU16_HS(void)
 {
 	unsigned int i;
 	uint16_t     Value;
 
-	PORTCON_PORTC_IE = (PORTCON_PORTC_IE & ~PORTCON_PORTC_IE_C2_MASK) | PORTCON_PORTC_IE_C2_BITS_ENABLE;
-	GPIOC->DIR = (GPIOC->DIR & ~GPIO_DIR_2_MASK) | GPIO_DIR_2_BITS_INPUT;
+	GPIO_SetPinOutputMode(GPIO_PIN_BK4819_SDA, false);
 	SYSTICK_DelayUs_HS(1);
-
 	Value = 0;
 	for (i = 0; i < 16; i++)
 	{
 		Value <<= 1;
-		Value |= GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SDA);
-		GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
+		Value |= GPIO_IsInputPinSet(GPIO_PIN_BK4819_SDA);
+		GPIO_SetOutputPin(GPIO_PIN_BK4819_SCL);
 		SYSTICK_DelayUs_HS(1);
-		GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
+		GPIO_ResetOutputPin(GPIO_PIN_BK4819_SCL);
 		SYSTICK_DelayUs_HS(1);
 	}
-	PORTCON_PORTC_IE = (PORTCON_PORTC_IE & ~PORTCON_PORTC_IE_C2_MASK) | PORTCON_PORTC_IE_C2_BITS_DISABLE;
-	GPIOC->DIR = (GPIOC->DIR & ~GPIO_DIR_2_MASK) | GPIO_DIR_2_BITS_OUTPUT;
+	GPIO_SetPinOutputMode(GPIO_PIN_BK4819_SDA, true);
 
 	return Value;
 }
 
-void BK4819_WriteU16_HS(uint16_t Data)
+static void BK4819_WriteBits_HS(uint16_t Data, unsigned int Bits)
 {
-	unsigned int i;
-
-	GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
-	for (i = 0; i < 16; i++)
+	GPIO_ResetOutputPin(GPIO_PIN_BK4819_SCL);
+	for (unsigned int i = 0; i < Bits; i++)
 	{
-		if ((Data & 0x8000) == 0)
-			GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SDA);
+		if ((Data & (1u << (Bits - 1))) == 0)
+			GPIO_ResetOutputPin(GPIO_PIN_BK4819_SDA);
 		else
-			GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SDA);
+			GPIO_SetOutputPin(GPIO_PIN_BK4819_SDA);
 
 		SYSTICK_DelayUs_HS(1);
-		GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
+		GPIO_SetOutputPin(GPIO_PIN_BK4819_SCL);
+		SYSTICK_DelayUs_HS(1);
 
 		Data <<= 1;
 
-		SYSTICK_DelayUs_HS(1);
-		GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
+		GPIO_ResetOutputPin(GPIO_PIN_BK4819_SCL);
 		SYSTICK_DelayUs_HS(1);
 	}
 }
@@ -956,71 +848,36 @@ uint16_t BK4819_ReadRegister_HS(BK4819_REGISTER_t Register)
 {
 	uint16_t Value;
 
-	GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCN);
-	GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
+	GPIO_SetOutputPin(GPIO_PIN_BK4819_CS);
+	GPIO_ResetOutputPin(GPIO_PIN_BK4819_SCL);
 
 	SYSTICK_DelayUs_HS(1);
 
-	GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCN);
-	BK4819_WriteU8(Register | 0x80);
+	GPIO_ResetOutputPin(GPIO_PIN_BK4819_CS);
+	BK4819_WriteBits_HS(Register | 0x80, 8);
 	Value = BK4819_ReadU16_HS();
-	GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCN);
+	GPIO_SetOutputPin(GPIO_PIN_BK4819_CS);
 
 	SYSTICK_DelayUs_HS(1);
 
-	GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
-	GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SDA);
+	GPIO_SetOutputPin(GPIO_PIN_BK4819_SCL);
+	GPIO_SetOutputPin(GPIO_PIN_BK4819_SDA);
 
 	return Value;
 }
 
-
-
-void BK4819_WriteU8_HS(uint8_t Data)
-{
-	unsigned int i;
-
-	GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
-	for (i = 0; i < 8; i++)
-	{
-		if ((Data & 0x80) == 0)
-			GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SDA);
-		else
-			GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SDA);
-
-		SYSTICK_DelayUs_HS(1);
-		GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
-		SYSTICK_DelayUs_HS(1);
-
-		Data <<= 1;
-
-		GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
-	}
-}
-
-
 void BK4819_WriteRegister_HS(BK4819_REGISTER_t Register, uint16_t Data)
 {
-	GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCN);
-	GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
+	GPIO_SetOutputPin(GPIO_PIN_BK4819_CS);
+	GPIO_ResetOutputPin(GPIO_PIN_BK4819_SCL);
 
-	//SYSTICK_DelayUs_HS(1);
+	GPIO_ResetOutputPin(GPIO_PIN_BK4819_CS);
+	BK4819_WriteBits_HS(Register, 8);
+	BK4819_WriteBits_HS(Data, 16);
+	GPIO_SetOutputPin(GPIO_PIN_BK4819_CS);
 
-	GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCN);
-	BK4819_WriteU8_HS(Register);
-
-	//SYSTICK_DelayUs_HS(1);
-
-	BK4819_WriteU16_HS(Data);
-
-	//SYSTICK_DelayUs_HS(1);
-
-	GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCN);
-
-	//SYSTICK_DelayUs_HS(1);
-
-	GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SCL);
-	GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_BK4819_SDA);
+	GPIO_SetOutputPin(GPIO_PIN_BK4819_SCL);
+	GPIO_SetOutputPin(GPIO_PIN_BK4819_SDA);
 }
 
 

@@ -1,7 +1,6 @@
 #ifdef ENABLE_FLASHLIGHT
 
 #include "driver/gpio.h"
-#include "bsp/dp32g030/gpio.h"
 
 #include "flashlight.h"
 
@@ -10,7 +9,7 @@ enum FlashlightMode_t  gFlashLightState;
 void FlashlightTimeSlice()
 {
 	if (gFlashLightState == FLASHLIGHT_BLINK && (gFlashLightBlinkCounter & 15u) == 0) {
-		GPIO_FlipBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+		GPIO_TogglePin(GPIO_PIN_FLASHLIGHT);
 		return;
 	}
 
@@ -27,9 +26,9 @@ void FlashlightTimeSlice()
 
 		if (gFlashLightBlinkCounter == next) {
 			if (c==0) {
-				GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+				GPIO_ResetOutputPin(GPIO_PIN_FLASHLIGHT);
 			} else {
-				GPIO_FlipBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+				GPIO_TogglePin(GPIO_PIN_FLASHLIGHT);
 			}
 
 			if (c >= 18) {
@@ -50,7 +49,7 @@ void ACTION_FlashLight(void)
 	switch (gFlashLightState) {
 		case FLASHLIGHT_OFF:
 			gFlashLightState++;
-			GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+			GPIO_SetOutputPin(GPIO_PIN_FLASHLIGHT);
 			break;
 		case FLASHLIGHT_ON:
 		case FLASHLIGHT_BLINK:
@@ -59,7 +58,7 @@ void ACTION_FlashLight(void)
 		case FLASHLIGHT_SOS:
 		default:
 			gFlashLightState = 0;
-			GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+			GPIO_ResetOutputPin(GPIO_PIN_FLASHLIGHT);
 	}
 }
 

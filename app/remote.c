@@ -181,7 +181,7 @@ static void sendStatus(void)
 static void setBaud(uint32_t b)
 {
     SYSTEM_DelayMs(15);                                       // let the TX FIFO drain
-    UART_Init((b * 1017u + 500u) / 1000u);                    // same scale as UART_BAUD_*_CLOCK_DIV
+    UART_Init(b);
     CECHWUartClearBuffer();                                   // DMA restarted at index 0
     curBaud = b;
 }

@@ -1,3 +1,62 @@
+# CEC firmware port for Quansheng UV-K5 V3 / UV-K1 (PY32F071)
+
+This branch ports the CEC firmware to the new Quansheng hardware revision used
+by the **UV-K5 V3** and the **UV-K1**. It builds **only** for that hardware and
+will not run on the original UV-K5/K6/5R (DP32G030).
+
+What changed compared to the UV-K5 build:
+
+| | UV-K5 (v1/v2) | UV-K5 V3 / UV-K1 |
+|---|---|---|
+| MCU | DP32G030, 64 KB flash | PY32F071, 128 KB flash (118 KB usable after the bootloader) |
+| Firmware base address | 0x00000000 | 0x08002800 (factory bootloader stays in place) |
+| Settings storage | 24C64 I2C EEPROM | PY25Q16 SPI flash, the 8 KB EEPROM layout is emulated on top of it |
+| RF chip | BK4819 | BK4829 (register values taken from the factory firmware) |
+| LCD | SPI0 + reset line | SPI1, no reset line |
+
+The hardware layer follows the PY32F071 ports by
+[muzkr](https://github.com/muzkr) and
+[deltafw](https://github.com/qshosfw/deltafw-k1-k5v3) (pin map, SPI flash,
+backlight, BK4829 register values). Puya's CMSIS and LL drivers are in `py32/`.
+
+Notes:
+
+* The EEPROM emulation keeps the factory K1 / K5 V3 flash addresses for
+  channels, settings and calibration, so the factory calibration is used as-is.
+  CEC-only areas (CW memories, CEC settings, spectrum, Hermes) are stored in
+  their own SPI flash sectors from `0x160000` up.
+* External CW key on the K-plug: on the PY32F071 the UART RX pin has no ADC, so
+  the line is read as a digital input. A straight key (or one paddle contact)
+  works; iambic paddles that rely on the resistor divider (`CW AD1..AD4`) do not.
+  The keypad paddle (PTT + MENU) is unaffected.
+* There is no charge current sense, so the "charging" indicator is driven by
+  battery voltage only. The voice chip (`ENABLE_VOICE`) does not exist on this
+  hardware.
+* The PC programming protocol no longer checks the AES challenge (the PY32F071
+  has no AES block), same as the other PY32 ports.
+* With 118 KB of flash, feature combinations that did not fit into 60 KB now
+  build (for example `PROFILE=hermes`, `ENABLE_SPECTRUM_WF=1`,
+  `ENABLE_AIRCOPY=1`).
+
+### Building
+
+```
+make                  # firmware.bin
+make PROFILE=hermes   # Hermes Link mesh build
+make PROFILE=sdr      # PC remote control build
+```
+
+### Flashing
+
+Flash `firmware.bin` (the raw binary, not `firmware.packed.bin`) with a flasher
+that supports the UV-K1 / UV-K5 V3 bootloader, for example UVTools2 or the
+`flasher.py` from deltafw: switch the radio on while holding PTT, then upload.
+
+**Back up your calibration before flashing.** This port has not been tested on
+every hardware batch; use it at your own risk.
+
+---
+
 # CEC UV-K5 firmware source (updated September 15, 2026)
 
 This repository now contains the **latest CEC mainline source** used for the 0.3 series.

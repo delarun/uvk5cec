@@ -43,7 +43,6 @@
 #include "ARMCM0.h"
 #include "audio.h"
 #include "board.h"
-#include "bsp/dp32g030/gpio.h"
 #include "driver/backlight.h"
 #ifdef ENABLE_FMRADIO
 	#include "driver/bk1080.h"
@@ -1036,7 +1035,7 @@ static void CheckKeys(void)
 // -------------------- PTT ------------------------
 	if (gPttIsPressed)
 	{
-		if (GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) || SerialConfigInProgress())
+		if (!GPIO_IsPttPressed() || SerialConfigInProgress())
 		{	// PTT released or serial comms config in progress
 			if (++gPttDebounceCounter >= 3 || SerialConfigInProgress())	    // 30ms
 			{	// stop transmitting
@@ -1049,7 +1048,7 @@ static void CheckKeys(void)
 		else
 			gPttDebounceCounter = 0;
 	}
-	else if (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) && !SerialConfigInProgress())
+	else if (GPIO_IsPttPressed() && !SerialConfigInProgress())
 	{	
 		if (ScreenDelayTime > 0)	//Ignore PTT while Screen display from Remote data
 			return;

@@ -7,8 +7,6 @@
 #include "app/app.h"
 #include "app/dtmf.h"
 #include "audio.h"
-#include "bsp/dp32g030/gpio.h"
-#include "bsp/dp32g030/syscon.h"
 #include "board.h"
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
@@ -28,9 +26,6 @@
 #include "app/uart.h"
 
 
-#include "bsp/dp32g030/portcon.h"
-#include "bsp/dp32g030/saradc.h"
-#include "bsp/dp32g030/syscon.h"
 #include "driver/adc.h"
 
 #include "font.h"
@@ -45,66 +40,53 @@
 #include "driver/systick.h"
 #include "misc.h"
 
-#include "bsp/dp32g030/irq.h"
 #include "cectimer.h"
 #include "ceccommon.h"
 
+// UV-K5 V3 / UV-K1: TIM14 clocked at 1 MHz replaces the DP32G030 TIMER_BASE0
+#include "py32f071_ll_bus.h"
+#include "py32f071_ll_tim.h"
+
 //Timer Handler
 uint32_t timeIncVal = 0;
-void HandlerTIMER_BASE0(void)
+void TIM14_IRQHandler(void)
 {
-    /*
-    if (timeIncVal % 2 == 0)
-        BACKLIGHT_TurnOff();
-    else
-        BACKLIGHT_TurnOn();
-    */
-    //TIMERBASE0_HIGHCNT = 0;
-    if (TIMERBASE0_IF & (1U << 1))  //HIGH CHECK
+    if (LL_TIM_IsActiveFlag_UPDATE(TIM14))
     {
-        TIMERBASE0_IF |= 1U << 1;
+        LL_TIM_ClearFlag_UPDATE(TIM14);
         timeIncVal++;
     }
-    
-    //Not use
-    /*
-    if (TIMERBASE0_IF & (1U << 0))  //LOW CHECK
-    {
-        TIMERBASE0_IF |= 1U << 0;
-        timeIncVal2++;
-    }
-    */
 }
 
-//interrupt 
+//interrupt
 void CECTimer0Enable(uint8_t timerType)
 {
     //milisecnd and increase timeIncVal, uint32_t range is 4,294,967,295 / 1000 (sec) / 60 (min) / 60 / (housr) / 24 (day) is about 50day, enough
-    TIMERBASE0_DIV = 48;    //1us단위로 tick 발생
-    if (timerType == CEC_TIMER_MSEC)    //Milisecond
-    {
-        //for test 1sencd
-        TIMERBASE0_HIGHLOAD = 1000;  //1000; //1mm sec단위 (16BIT : max 65535)
-    }
-    else if (timerType == CEC_TIMER_APRS) //1000(msec) / 1200 (1200bps)  = 0.833 (with process time)
-    {
-        //for test 1sencd
-        //TIMERBASE0_HIGHLOAD = 832;  //1000; //1mm sec단위 (16BIT : max 65535)
-        TIMERBASE0_HIGHLOAD = 820;  //1000; //1mm sec단위 (16BIT : max 65535) 795부터 가능 833
-    }
-    else if (timerType == CEC_TIMER_FT8) //FT8 0.16
-    {
-        //for ft8 160msec
-        TIMERBASE0_HIGHLOAD = 4;  //1000; //1mm sec단위 (16BIT : max 65535)
-    }
+    uint32_t period = 1000;             //1msec
 
-    TIMERBASE0_IE |= 1U << 1;   //인터럽트 발생
-    TIMERBASE0_EN |= 1U << 1;   //enabled high count
-    NVIC_EnableIRQ((IRQn_Type)DP32_TIMER_BASE0_IRQn);
+    if (timerType == CEC_TIMER_APRS)    //1000(msec) / 1200 (1200bps)  = 0.833 (with process time)
+        period = 820;
+    else if (timerType == CEC_TIMER_FT8)
+        period = 4;
+
+    LL_APB1_GRP2_EnableClock(LL_APB1_GRP2_PERIPH_TIM14);
+
+    LL_TIM_DisableCounter(TIM14);
+    LL_TIM_SetPrescaler(TIM14, SystemCoreClock / 1000000 - 1);    //1us tick
+    LL_TIM_SetAutoReload(TIM14, period - 1);
+    LL_TIM_SetCounter(TIM14, 0);
+    LL_TIM_GenerateEvent_UPDATE(TIM14);
+    LL_TIM_ClearFlag_UPDATE(TIM14);
+    LL_TIM_EnableIT_UPDATE(TIM14);
+    LL_TIM_EnableCounter(TIM14);
+
+    NVIC_SetPriority(TIM14_IRQn, 1);
+    NVIC_EnableIRQ(TIM14_IRQn);
 }
+
 void CECTimer0Disable()
 {
-    TIMERBASE0_EN &= ~(1U << 1);   //diabled high count
-    NVIC_DisableIRQ((IRQn_Type)DP32_TIMER_BASE0_IRQn);
+    LL_TIM_DisableCounter(TIM14);
+    LL_TIM_DisableIT_UPDATE(TIM14);
+    NVIC_DisableIRQ(TIM14_IRQn);
 }
-

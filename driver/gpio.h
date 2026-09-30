@@ -1,4 +1,5 @@
-/* Copyright 2023 Dual Tachyon
+/* Copyright 2025 muzkr https://github.com/muzkr
+ * Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,62 +18,79 @@
 #ifndef DRIVER_GPIO_H
 #define DRIVER_GPIO_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
-enum GPIOA_PINS {
-	GPIOA_PIN_KEYBOARD_0 = 3,
-	GPIOA_PIN_KEYBOARD_1 = 4,
-	GPIOA_PIN_KEYBOARD_2 = 5,
-	GPIOA_PIN_KEYBOARD_3 = 6,
-	GPIOA_PIN_KEYBOARD_4 = 10, // Shared with I2C!
-	GPIOA_PIN_KEYBOARD_5 = 11, // Shared with I2C!
-	GPIOA_PIN_KEYBOARD_6 = 12, // Shared with voice chip!
-	GPIOA_PIN_KEYBOARD_7 = 13, // Shared with voice chip!
+#include "py32f071_ll_gpio.h"
 
-	GPIOA_PIN_I2C_SCL    = 10, // Shared with keyboard!
-	GPIOA_PIN_I2C_SDA    = 11, // Shared with keyboard!
+// UV-K5 V3 / UV-K1 (PY32F071) pin map
+//
+//  PA0/1/2  SPI2 SCK/MOSI/MISO  -> PY25Q16 SPI flash, PA3 = flash CS
+//  PA5/7    SPI1 SCK/MOSI       -> ST7565 LCD, PA6 = LCD A0, PB2 = LCD CS
+//  PA8      audio amplifier enable
+//  PA9/10   USART1 TX/RX        -> K-plug programming cable
+//  PB0      ADC_IN8             -> battery voltage
+//  PB3..6   keypad columns (out), PB12..15 keypad rows (in)
+//  PB8/9    BK4819 SCK/SDA, PF9 = BK4819 CS
+//  PB10     PTT (active low)
+//  PC13     flashlight
+//  PF5/6    BK1080 SCK/SDA
+//  PF8      LCD backlight
 
-	GPIOA_PIN_VOICE_0    = 12, // Shared with keyboard!
-	GPIOA_PIN_VOICE_1    = 13  // Shared with keyboard!
-};
+#define GPIO_MAKE_PIN(Port, PinMask)    ((uint32_t)((((uint32_t)(Port)) << 16) | (0xffff & (PinMask))))
+#define GPIO_PORT(Pin)                  ((GPIO_TypeDef *)(IOPORT_BASE + ((Pin) >> 16)))
+#define GPIO_PIN_MASK(Pin)              (0xffff & (Pin))
 
-enum GPIOB_PINS {
-	GPIOB_PIN_BACKLIGHT  = 6,
+#define GPIO_PIN_PTT        GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_10)
+#define GPIO_PIN_BACKLIGHT  GPIO_MAKE_PIN(GPIOF, LL_GPIO_PIN_8)
+#define GPIO_PIN_FLASHLIGHT GPIO_MAKE_PIN(GPIOC, LL_GPIO_PIN_13)
+#define GPIO_PIN_AUDIO_PATH GPIO_MAKE_PIN(GPIOA, LL_GPIO_PIN_8)
 
-	GPIOB_PIN_ST7565_A0  = 9,
-	GPIOB_PIN_ST7565_RES = 11, // Shared with SWD!
+#define GPIO_PIN_BK4819_CS  GPIO_MAKE_PIN(GPIOF, LL_GPIO_PIN_9)
+#define GPIO_PIN_BK4819_SCL GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_8)
+#define GPIO_PIN_BK4819_SDA GPIO_MAKE_PIN(GPIOB, LL_GPIO_PIN_9)
 
-	GPIOB_PIN_SWD_IO     = 11, // Shared with ST7565!
-	GPIOB_PIN_SWD_CLK    = 14,
+#define GPIO_PIN_BK1080_SCL GPIO_MAKE_PIN(GPIOF, LL_GPIO_PIN_5)
+#define GPIO_PIN_BK1080_SDA GPIO_MAKE_PIN(GPIOF, LL_GPIO_PIN_6)
 
-	GPIOB_PIN_BK1080     = 15
-};
-
-enum GPIOC_PINS {
-	GPIOC_PIN_BK4819_SCN = 0,
-	GPIOC_PIN_BK4819_SCL = 1,
-	GPIOC_PIN_BK4819_SDA = 2,
-
-	GPIOC_PIN_FLASHLIGHT = 3,
-	GPIOC_PIN_AUDIO_PATH = 4,
-	GPIOC_PIN_PTT        = 5
-};
-
-static inline void GPIO_ClearBit(volatile uint32_t *pReg, uint8_t Bit) {
-	*pReg &= ~(1U << Bit);
+static inline void GPIO_SetOutputPin(uint32_t Pin)
+{
+	LL_GPIO_SetOutputPin(GPIO_PORT(Pin), GPIO_PIN_MASK(Pin));
 }
 
-static inline uint8_t GPIO_CheckBit(volatile uint32_t *pReg, uint8_t Bit) {
-	return (*pReg >> Bit) & 1U;
+static inline void GPIO_ResetOutputPin(uint32_t Pin)
+{
+	LL_GPIO_ResetOutputPin(GPIO_PORT(Pin), GPIO_PIN_MASK(Pin));
 }
 
-static inline void GPIO_FlipBit(volatile uint32_t *pReg, uint8_t Bit) {
-	*pReg ^= 1U << Bit;
+static inline void GPIO_TogglePin(uint32_t Pin)
+{
+	LL_GPIO_TogglePin(GPIO_PORT(Pin), GPIO_PIN_MASK(Pin));
 }
 
-static inline void GPIO_SetBit(volatile uint32_t *pReg, uint8_t Bit) {
-	*pReg |= 1U << Bit;
+static inline bool GPIO_IsInputPinSet(uint32_t Pin)
+{
+	return LL_GPIO_IsInputPinSet(GPIO_PORT(Pin), GPIO_PIN_MASK(Pin));
+}
+
+static inline void GPIO_SetPinOutputMode(uint32_t Pin, bool Output)
+{
+	LL_GPIO_SetPinMode(GPIO_PORT(Pin), GPIO_PIN_MASK(Pin), Output ? LL_GPIO_MODE_OUTPUT : LL_GPIO_MODE_INPUT);
+}
+
+static inline bool GPIO_IsPttPressed(void)
+{
+	return !GPIO_IsInputPinSet(GPIO_PIN_PTT);
+}
+
+static inline void GPIO_EnableAudioPath(void)
+{
+	GPIO_SetOutputPin(GPIO_PIN_AUDIO_PATH);
+}
+
+static inline void GPIO_DisableAudioPath(void)
+{
+	GPIO_ResetOutputPin(GPIO_PIN_AUDIO_PATH);
 }
 
 #endif
-

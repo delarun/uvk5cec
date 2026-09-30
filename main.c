@@ -31,8 +31,8 @@
 
 #include "app/app.h"
 #include "app/dtmf.h"
-#include "bsp/dp32g030/gpio.h"
-#include "bsp/dp32g030/syscon.h"
+#include "py32f071_ll_bus.h"
+#include "py32f071_ll_utils.h"
 
 #include "driver/backlight.h"
 #include "driver/bk4819.h"
@@ -65,20 +65,10 @@ void _putchar(__attribute__((unused)) char c)
 
 void Main(void)
 {
-	// Enable clock gating of blocks we need
-	SYSCON_DEV_CLK_GATE = 0
-		| SYSCON_DEV_CLK_GATE_GPIOA_BITS_ENABLE
-		| SYSCON_DEV_CLK_GATE_GPIOB_BITS_ENABLE
-		| SYSCON_DEV_CLK_GATE_GPIOC_BITS_ENABLE
-		| SYSCON_DEV_CLK_GATE_UART1_BITS_ENABLE
-		| SYSCON_DEV_CLK_GATE_SPI0_BITS_ENABLE
-		| SYSCON_DEV_CLK_GATE_SARADC_BITS_ENABLE
-		| SYSCON_DEV_CLK_GATE_CRC_BITS_ENABLE
-		| SYSCON_DEV_CLK_GATE_AES_BITS_ENABLE
-		| SYSCON_DEV_CLK_GATE_PWM_PLUS0_BITS_ENABLE
-		| SYSCON_DEV_CLK_GATE_TIMER_BASE0_BITS_ENABLE
-		;
-
+	// The factory bootloader leaves the PY32F071 running at 48 MHz
+	LL_APB1_GRP2_EnableClock(LL_APB1_GRP2_PERIPH_SYSCFG);
+	LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_PWR);
+	LL_SetSystemCoreClock(48000000);
 
 	SYSTICK_Init();
 	BOARD_Init();
@@ -140,7 +130,7 @@ void Main(void)
 	}
 
 	// wait for user to release all butts before moving on
-	if (!GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) ||
+	if (GPIO_IsPttPressed() ||
 	     KEYBOARD_Poll() != KEY_INVALID ||
 		 BootMode != BOOT_MODE_NORMAL)
 	{	// keys are pressed
@@ -150,7 +140,7 @@ void Main(void)
 		// 500ms
 		for (int i = 0; i < 50;)
 		{
-			i = (GPIO_CheckBit(&GPIOC->DATA, GPIOC_PIN_PTT) && KEYBOARD_Poll() == KEY_INVALID) ? i + 1 : 0;
+			i = (!GPIO_IsPttPressed() && KEYBOARD_Poll() == KEY_INVALID) ? i + 1 : 0;
 			SYSTEM_DelayMs(10);
 		}
 		gKeyReading0 = KEY_INVALID;
@@ -202,7 +192,6 @@ void Main(void)
 
 		BOOT_ProcessMode(BootMode);
 
-		GPIO_ClearBit(&GPIOA->DATA, GPIOA_PIN_VOICE_0);
 
 		gUpdateStatus = true;
 

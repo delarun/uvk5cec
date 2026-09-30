@@ -47,9 +47,6 @@
 #include "app/app.h"
 #include "ui/helper.h"
 #include "driver/uart.h"
-#include "bsp/dp32g030/uart.h"
-#include "bsp/dp32g030/dma.h"
-#include "bsp/dp32g030/syscon.h"
 
 #define _MAX_READ_CH_ATTRIBUTES 7
 #define COMBUFF_USE_SEEK_RSSI   01

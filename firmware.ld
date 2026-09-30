@@ -1,79 +1,85 @@
-ENTRY(HandlerReset)
+/* PY32F071xB (Quansheng UV-K5 V3 / UV-K1)
+ * The factory bootloader occupies 0x08000000..0x080027FF and jumps to the
+ * vector table at 0x08002800 (VTOR is set in SystemInit). */
 
-_estack = 0x20004000;    /* end of 16K RAM */
+ENTRY(Reset_Handler)
 
-_Min_Heap_Size = 0;      /* required amount of heap  */
-_Min_Stack_Size = 0x80;  /* required amount of stack */
+_estack = ORIGIN(RAM) + LENGTH(RAM);
+
+_Min_Heap_Size  = 0;       /* required amount of heap  */
+_Min_Stack_Size = 0x400;   /* required amount of stack */
 
 MEMORY
 {
-	FLASH (rx)      : ORIGIN = 0x00000000, LENGTH = 60K
+	FLASH (rx)      : ORIGIN = 0x08002800, LENGTH = 118K
 	RAM (xrw)       : ORIGIN = 0x20000000, LENGTH = 16K
 }
 
 SECTIONS
 {
-	/* Program code */
+	.isr_vector :
+	{
+		. = ALIGN(4);
+		KEEP(*(.isr_vector))
+		. = ALIGN(4);
+	} >FLASH
+
 	.text :
 	{
 		. = ALIGN(4);
-		KEEP(*(.text.isr)) /* .text sections of code  */
-		*(.text)           /* .text sections of code  */
-		*(.text*)          /* .text* sections of code */
-		*(.rodata)         /* .rodata sections        */
-		*(.rodata*)        /* .rodata* sections       */
-		*(.glue_7)         /* Glue arm to thumb code  */
-		*(.glue_7t)        /* Glue thumb to arm code  */
+		*(.text)
+		*(.text*)
+		*(.rodata)
+		*(.rodata*)
+		*(.glue_7)
+		*(.glue_7t)
 		*(.eh_frame)
 
+		KEEP(*(.init))
 		KEEP(*(.fini))
 		. = ALIGN(4);
-		_etext = .;        /* global symbols at end   */
+		_etext = .;
 	} >FLASH
 
-	/* Used by startup code */
+	.ARM.exidx :
+	{
+		*(.ARM.exidx*)
+	} >FLASH
 
-	. = ALIGN(4);
-
-	flash_data_start = .;
+	_sidata = LOADADDR(.data);
 
 	.data :
 	{
 		. = ALIGN(4);
-		sram_data_start = .;
-		*(.sramtext)
-		*(.srambss)
-		*(.data)           /* .data sections              */
-		*(.data*)          /* .data* sections             */
-
+		_sdata = .;
+		*(.data)
+		*(.data*)
 		. = ALIGN(4);
-		_edata = .;        /* Global symbol at data end   */
+		_edata = .;
 	} >RAM AT> FLASH
 
-	sram_data_end = .;
-
-	/* Uninitialized data */
 	. = ALIGN(4);
 	.bss :
 	{
-		_sbss = .;         /* Global symbol at bss start */
+		_sbss = .;
 		__bss_start__ = _sbss;
 		*(.bss)
 		*(.bss*)
 		*(COMMON)
-
 		. = ALIGN(4);
-		_ebss = .;         /* Global symbol at bss end */
+		_ebss = .;
 		__bss_end__ = _ebss;
 	} >RAM
 
-	/* Check that there is enough RAM */
 	._user_heap_stack :
 	{
-		. = ALIGN(4);
+		. = ALIGN(8);
+		PROVIDE(end = .);
+		PROVIDE(_end = .);
 		. = . + _Min_Heap_Size;
 		. = . + _Min_Stack_Size;
-		. = ALIGN(4);
+		. = ALIGN(8);
 	} >RAM
-}
 
+	.ARM.attributes 0 : { *(.ARM.attributes) }
+}
